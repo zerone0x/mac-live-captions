@@ -32,6 +32,12 @@ Every PR and every push to `main` builds the app on GitHub Actions.
    ```
 
 4. The app has no Dock icon. Look for the captions icon in the menu bar.
+5. To see the caption overlay without audio, choose **Demo Captions** in the
+   menu. It plays a short scripted English feed at the notch (or in a pill
+   under the menu bar on displays without a notch).
+
+Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
+overlay in notch and pill style.
 
 Each build has a new ad-hoc signature, so macOS may ask for audio permissions
 again after you install a newer build.

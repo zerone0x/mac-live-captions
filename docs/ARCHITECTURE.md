@@ -21,7 +21,7 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 | AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>` | ScreenCaptureKit system audio; microphone later, opt-in | App | #7 |
 | Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>` | `SpeechAnalyzer` + `SpeechTranscriber` (en-US) | App (adapter), Core (logic) | #8 |
 | CaptionStore | concrete type, pure logic | n/a (no platform code) | Core | #8 |
-| Overlay | `protocol CaptionPresenter` (`@MainActor`) | notch overlay window | App | #9 |
+| Overlay | `protocol CaptionPresenter` (`@MainActor`); `CaptionComposer` (layout, idle collapse), `OverlayPlacement` (notch maths) | `NotchOverlayController` + `OverlayPanel` (click-through `NSPanel`) | Core (logic), App (window) | #9 |
 | Session / menu bar | `SessionPhase` state machine | `MenuBarExtra` | Core + App | #6, #11 |
 
 Value types shared by the stages (all `Sendable`, all in Core):
@@ -33,6 +33,9 @@ Value types shared by the stages (all `Sendable`, all in Core):
 - `TranscriptEvent`: `.volatile(segment)` (may still change, drives the live
   line only) or `.final(segment)` (stable, goes into the transcript).
 - `CaptionSnapshot` / `CaptionLine`: what the overlay shows now; empty means hide.
+- `CaptionFrame` / `CaptionDisplayLine`: a snapshot laid out by
+  `CaptionComposer` (at most two lines of 42 characters, final text plus a
+  lighter volatile tail).
 
 Contracts are a starting point. The wave that first implements a stage may
 reshape its protocol; record the change in DECISIONS.md.
