@@ -18,7 +18,7 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 
 | Stage | Contract (Core) | Real implementation | Lives in | Wave |
 |---|---|---|---|---|
-| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>` | ScreenCaptureKit system audio; microphone later, opt-in | App | #7 |
+| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>`; `AudioCaptureStatus` state machine, `AudioChunkAssembler`, `SilenceMonitor` | `SystemAudioSource` (ScreenCaptureKit), `MicrophoneAudioSource` (opt-in, off by default) | App (`Sources/Audio/`), Core (logic) | #7 |
 | Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>`; `SegmentTracker` (stable IDs), `AudioTimeline` | `SpeechAnalyzerTranscriber` (`SpeechAnalyzer` + `SpeechTranscriber`, en-US) | SpeechAdapter package (adapter), Core (logic) | #8 |
 | Speech model | `protocol SpeechAssetProvider`, `SpeechAssetState` | `SystemSpeechAssets` (`AssetInventory`) | SpeechAdapter package, Core | #8 |
 | CaptionStore | `struct CaptionStore`, pure logic | n/a (no platform code) | Core | #8 |
@@ -29,7 +29,10 @@ Value types shared by the stages (all `Sendable`, all in Core):
 
 - `AudioChunk`: mono Float32 samples, sample rate, `AudioOrigin` (`system` or
   `microphone`), start time in session seconds. No AVFoundation types, so fakes
-  are trivial; adapters convert to and from `AVAudioPCMBuffer`.
+  are trivial; adapters convert to and from `AVAudioPCMBuffer`. Real sources
+  emit contiguous 100 ms chunks at 16 kHz (`CaptureFormat`, DECISIONS 0006).
+- `AudioCaptureStatus` / `AudioCaptureError`: capture health (permission
+  denied, no audio, reconnecting, failed) as explicit states.
 - `TranscriptSegment`: stable `SegmentID`, text, time range, origin.
 - `TranscriptEvent`: `.volatile(segment)` (may still change, drives the live
   line only) or `.final(segment)` (stable, goes into the transcript).
@@ -38,7 +41,7 @@ Value types shared by the stages (all `Sendable`, all in Core):
   ready, unsupported or failed. `TranscriptionError` says why a transcriber
   cannot run.
 
-`CaptionStore` rules (DECISIONS 0006): volatile text is replaced in place under
+`CaptionStore` rules (DECISIONS 0008): volatile text is replaced in place under
 its `SegmentID`; a final result keeps that ID and is then immutable; the
 transcript keeps the newest `historyLimit` segments; the snapshot is the last
 `visibleFinalLines` finals plus the volatile lines.
@@ -51,12 +54,13 @@ reshape its protocol; record the change in DECISIONS.md.
 ```
 App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit)
   Sources/                @main app, menu, adapters that conform to Core protocols
+    Audio/                system audio + microphone sources, debug capture menu
   Info.plist              LSUIElement, usage strings
   LiveCaptions.entitlements
 Packages/Core/            local Swift package "Core", product LiveCaptionsCore
   Sources/LiveCaptionsCore/   pure logic + protocols, no UI, no hardware
   Tests/LiveCaptionsCoreTests/  Swift Testing; fakes for every protocol
-Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0005)
+Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0007)
   Sources/LiveCaptionsSpeech/   SpeechAnalyzer/SpeechTranscriber/AssetInventory adapter
   Tests/LiveCaptionsSpeechTests/  converter tests, real-audio test (skips without the model)
 project.yml               XcodeGen spec (the .xcodeproj is generated, not committed)

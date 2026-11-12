@@ -10,6 +10,9 @@ import Observation
 final class AppModel {
     private(set) var phase: SessionPhase = .idle
 
+    /// Debug-only audio capture check (#7), independent of `phase`.
+    let captureProbe = AudioCaptureProbe()
+
     func start() {
         send(.startRequested)
         send(.didStart)

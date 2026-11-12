@@ -1,7 +1,7 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-// Platform adapter for on-device speech recognition (docs/DECISIONS.md, 0005).
+// Platform adapter for on-device speech recognition (docs/DECISIONS.md, 0007).
 // Wraps Apple's Speech framework behind the Core `Transcriber` and
 // `SpeechAssetProvider` protocols. Logic that can be tested without the Speech
 // framework stays in Core.

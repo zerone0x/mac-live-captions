@@ -3,7 +3,7 @@ import LiveCaptionsCore
 import Speech
 
 /// The one recogniser configuration the app uses: en-US, on device
-/// (docs/DECISIONS.md, 0003 and 0006).
+/// (docs/DECISIONS.md, 0003 and 0008).
 public enum SpeechConfiguration {
     /// Captions are English only.
     public static let localeIdentifier = "en-US"

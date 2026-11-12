@@ -20,6 +20,10 @@ struct MenuContent: View {
 
         Divider()
 
+        CaptureDebugMenu(probe: model.captureProbe)
+
+        Divider()
+
         Button("Quit LiveCaptions") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }
