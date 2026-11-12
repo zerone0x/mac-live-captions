@@ -2,7 +2,7 @@ import Foundation
 
 /// Turns transcriber events into the caption state the overlay shows.
 ///
-/// Rules (see docs/DECISIONS.md, 0008):
+/// Rules (see docs/DECISIONS.md, 0011):
 ///
 /// - A segment keeps its `SegmentID` from its first volatile result to its
 ///   final result, so the overlay can update a line in place.

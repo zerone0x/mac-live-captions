@@ -6,8 +6,9 @@ CONFIG   ?= Release
 DERIVED  := build/DerivedData
 APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
+SHOTS    := build/screenshots
 
-.PHONY: all generate test test-core test-speech build package verify check-offline open clean
+.PHONY: all generate test test-core test-speech build package verify screenshots check-offline open clean
 
 all: check-offline test build
 
@@ -47,6 +48,11 @@ package: build verify
 ## Sanity-check the built bundle: menu-bar only, usage strings, signature, arm64.
 verify:
 	scripts/verify-app.sh $(APP)
+
+## Render overlay screenshots (PNG) with the built app; CI uploads them.
+screenshots:
+	rm -rf $(SHOTS)
+	$(APP)/Contents/MacOS/LiveCaptions --render-overlay-snapshots $(SHOTS)
 
 ## Fail if networking APIs appear in the caption path (see docs/DECISIONS.md).
 check-offline:

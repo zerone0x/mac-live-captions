@@ -22,7 +22,7 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 | Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>`; `SegmentTracker` (stable IDs), `AudioTimeline` | `SpeechAnalyzerTranscriber` (`SpeechAnalyzer` + `SpeechTranscriber`, en-US) | SpeechAdapter package (adapter), Core (logic) | #8 |
 | Speech model | `protocol SpeechAssetProvider`, `SpeechAssetState` | `SystemSpeechAssets` (`AssetInventory`) | SpeechAdapter package, Core | #8 |
 | CaptionStore | `struct CaptionStore`, pure logic | n/a (no platform code) | Core | #8 |
-| Overlay | `protocol CaptionPresenter` (`@MainActor`) | notch overlay window | App | #9 |
+| Overlay | `protocol CaptionPresenter` (`@MainActor`); `CaptionComposer` (layout, idle collapse), `OverlayPlacement` (notch maths) | `NotchOverlayController` + `OverlayPanel` (click-through `NSPanel`) | Core (logic), App (window) | #9 |
 | Session / menu bar | `SessionPhase` state machine | `MenuBarExtra` | Core + App | #6, #11 |
 
 Value types shared by the stages (all `Sendable`, all in Core):
@@ -40,8 +40,11 @@ Value types shared by the stages (all `Sendable`, all in Core):
 - `SpeechAssetState`: the en-US model is checking, not installed, downloading,
   ready, unsupported or failed. `TranscriptionError` says why a transcriber
   cannot run.
+- `CaptionFrame` / `CaptionDisplayLine`: a snapshot laid out by
+  `CaptionComposer` (at most two lines of 42 characters, final text plus a
+  lighter volatile tail).
 
-`CaptionStore` rules (DECISIONS 0008): volatile text is replaced in place under
+`CaptionStore` rules (DECISIONS 0011): volatile text is replaced in place under
 its `SegmentID`; a final result keeps that ID and is then immutable; the
 transcript keeps the newest `historyLimit` segments; the snapshot is the last
 `visibleFinalLines` finals plus the volatile lines.
@@ -60,7 +63,7 @@ App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit)
 Packages/Core/            local Swift package "Core", product LiveCaptionsCore
   Sources/LiveCaptionsCore/   pure logic + protocols, no UI, no hardware
   Tests/LiveCaptionsCoreTests/  Swift Testing; fakes for every protocol
-Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0007)
+Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0010)
   Sources/LiveCaptionsSpeech/   SpeechAnalyzer/SpeechTranscriber/AssetInventory adapter
   Tests/LiveCaptionsSpeechTests/  converter tests, real-audio test (skips without the model)
 project.yml               XcodeGen spec (the .xcodeproj is generated, not committed)

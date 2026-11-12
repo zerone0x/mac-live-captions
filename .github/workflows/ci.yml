@@ -59,3 +59,15 @@ jobs:
           path: build/LiveCaptions.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Render overlay screenshots
+        timeout-minutes: 3
+        run: make screenshots
+
+      - name: Upload overlay screenshots
+        uses: actions/upload-artifact@v6
+        with:
+          name: overlay-screenshots-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14

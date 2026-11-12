@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Items of the menu-bar menu (`MenuBarExtra` with the default menu style).
 struct MenuContent: View {
-    let model: AppModel
+    @Bindable var model: AppModel
 
     var body: some View {
         Text(model.phase.statusText)
@@ -21,6 +21,11 @@ struct MenuContent: View {
         Divider()
 
         CaptureDebugMenu(probe: model.captureProbe)
+
+        Toggle("Hide Overlay from Screen Sharing (Best Effort)", isOn: $model.hideOverlayFromScreenSharing)
+
+        Button(model.isDemoPlaying ? "Debug: Stop Demo Captions" : "Debug: Demo Captions") { model.toggleDemo() }
+            .keyboardShortcut("d")
 
         Divider()
 
