@@ -1,0 +1,12 @@
+name: X
+# url: https://example.com in a comment is fine
+packages:
+  Core:
+    path: Packages/Core
+targets:
+  X:
+    type: application
+    platform: macOS
+    info:
+      properties:
+        url: not-a-package

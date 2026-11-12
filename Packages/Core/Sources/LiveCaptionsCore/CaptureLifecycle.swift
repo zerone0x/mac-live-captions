@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-// Start/stop bookkeeping shared by the capture sources (docs/DECISIONS.md, 0012).
+// Start/stop bookkeeping shared by the capture sources (docs/DECISIONS.md, 0013).
 //
 // A capture source starts and stops from several places at once: `start()`
 // awaits permission prompts and ScreenCaptureKit, `stop()` can run in the

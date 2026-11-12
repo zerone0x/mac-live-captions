@@ -26,7 +26,7 @@ import ScreenCaptureKit
 /// `CaptureToken`; each path that resumes later (after an `await`, a
 /// reconnect delay, a device-change check, a sample callback) checks it first,
 /// so nothing from a stopped run can start a stream, install a listener or
-/// report a status (DECISIONS 0012). If `stop()` runs while `start()` is
+/// report a status (DECISIONS 0013). If `stop()` runs while `start()` is
 /// still starting, `start()` returns a stream that is already finished.
 final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
     let origin: AudioOrigin = .system
@@ -395,7 +395,7 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
     ///
     /// No buffers can also mean ScreenCaptureKit sends nothing while nothing
     /// plays; then the rebuild costs a short reconnect and loses no audio, so
-    /// the check does not need to tell the two apart (DECISIONS 0012).
+    /// the check does not need to tell the two apart (DECISIONS 0013).
     private func defaultOutputDeviceChanged(for run: CaptureToken) {
         let countAtChange = lock.withLock { bufferCount }
         sampleQueue.asyncAfter(deadline: .now() + Self.deviceChangeGracePeriod) { [weak self] in

@@ -2,7 +2,7 @@
 import PackageDescription
 
 // Audio capture adapter code that can be tested without capture permissions
-// (docs/DECISIONS.md, 0012): PCM buffer conversion with AVFoundation. The
+// (docs/DECISIONS.md, 0013): PCM buffer conversion with AVFoundation. The
 // capture sources stay in the App target; their pure logic (status, run
 // tokens, retries, silence) lives in Core.
 let package = Package(
