@@ -132,3 +132,70 @@ convert the sample type if the recogniser wants something else. Chunk times
 do not include gaps while reconnecting. Until #11 wires the pipeline, a
 "Debug: Audio Capture" submenu runs a source on its own and shows the level
 and captured seconds.
+
+## 0007: Caption overlay is a click-through panel at the notch of the menu-bar screen
+
+2026-11-12 · #9
+
+**Context.** Captions must stay visible over every app, including full-screen
+ones, without taking focus or blocking clicks (meeting tools put buttons at
+the top of the window). Existing notch apps (DynamicNotchKit, boring.notch,
+NotchDrop) agree on the window setup; see docs/research/ux-and-privacy.md, 1.1–1.3.
+
+**Decision.** The overlay is a borderless `NSPanel` with `.nonactivatingPanel`,
+`canBecomeKey`/`canBecomeMain` = `false` and `ignoresMouseEvents = true`.
+Collection behaviour `.canJoinAllSpaces`, `.fullScreenAuxiliary`, `.stationary`,
+`.ignoresCycle`; level `.mainMenu + 3` (as boring.notch) so it can draw over
+the menu bar beside the notch. No private SkyLight APIs. It goes on the screen
+with the menu bar (`NSScreen.screens.first`), not `NSScreen.main`, which
+follows keyboard focus. If that screen has a notch (`auxiliaryTopLeftArea`
+and `auxiliaryTopRightArea` both set, `safeAreaInsets.top > 0`) the panel hangs
+from the notch as a black shape; otherwise it is a pill centred under the menu
+bar. The placement maths is `OverlayPlacement` in Core; it is recomputed on
+`didChangeScreenParametersNotification` and every time the overlay opens.
+
+**Consequences.** Whether level `.mainMenu + 3` stays above full-screen video,
+Keynote and Zoom on macOS 26 is not verified in CI; it is on the owner's manual
+checklist. A captions window that needs clicks (a transcript panel) will be a
+separate window. A screen choice setting can come later (#11).
+
+## 0008: Caption layout: two lines, 42 characters, finalized text is append-only
+
+2026-11-12 · #9
+
+**Context.** English subtitle guidelines allow two lines of about 42
+characters. Live captions that rewrap or flicker as the recogniser revises
+its guess measurably increase reading load (ux-and-privacy.md, 2.1–2.3).
+
+**Decision.** `CaptionComposer` (Core) turns `CaptionSnapshot`s into
+`CaptionFrame`s: greedy left-aligned word wrap at 42 characters, at most two
+lines, scrolling up. Final segments are appended once (by segment ID) and
+never change; only the volatile tail at the end is replaced. Greedy wrapping
+is prefix-stable, so appended text cannot move earlier words. The view does
+not scroll back down when a revision gets shorter. The overlay collapses
+after 6 s without new text; text after that starts on a fresh line. The view
+draws final text white and the volatile tail at half opacity, one `Text` per
+line with `lineLimit(1)` so SwiftUI never rewraps on its own. The composer
+takes the time as a parameter, so all of this is unit-tested without a clock.
+
+**Consequences.** Character counts approximate pixel width; lines of wide
+characters shrink slightly (`minimumScaleFactor`) instead of wrapping.
+Throttling volatile updates (200–300 ms) is not done yet; add it if the real
+recogniser updates faster than is comfortable to read.
+
+## 0009: "Hide from screen sharing" is best effort only
+
+2026-11-12 · #9
+
+**Context.** Apple documents `NSWindow.SharingType.none` as a legacy constant
+that should not be used to exclude content from capture, and ScreenCaptureKit
+based capture may ignore it, depending on the app and macOS version
+(ux-and-privacy.md, 1.4).
+
+**Decision.** The menu has "Hide Overlay from Screen Sharing (Best Effort)",
+off by default, which sets `sharingType = .none` on the overlay panel. We do
+not promise that it works. The reliable advice for users is to share a single
+window instead of the whole screen.
+
+**Consequences.** Settings copy and docs must keep the "best effort" wording.
+Re-test with Zoom, Meet and Teams after each major macOS update.
