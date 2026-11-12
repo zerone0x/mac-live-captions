@@ -50,7 +50,7 @@ jobs:
         run: make package
 
       - name: Upload app artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: LiveCaptions-${{ github.sha }}
           path: build/LiveCaptions.zip
