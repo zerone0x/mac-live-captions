@@ -19,7 +19,9 @@ import Speech
 ///    the same `SegmentID`.
 /// 4. When the audio stream ends, finalize and finish the analyzer, so the
 ///    last phrase is delivered as a final result. Cancelling the consumer
-///    cancels the analysis.
+///    cancels the analysis. If the analyzer's results fail mid-session, the
+///    event stream ends with that error at once and the feed loop is
+///    cancelled; captions do not just stop silently.
 ///
 /// No network calls: recognition runs on device.
 public struct SpeechAnalyzerTranscriber: Transcriber {
@@ -33,16 +35,50 @@ public struct SpeechAnalyzerTranscriber: Transcriber {
         _ audio: AsyncThrowingStream<AudioChunk, any Error>
     ) -> AsyncThrowingStream<TranscriptEvent, any Error> {
         let locale = self.locale
-        return AsyncThrowingStream { continuation in
+        return Self.eventStream { continuation in
+            try await Self.run(locale: locale, audio: audio, continuation: continuation)
+        }
+    }
+
+    typealias EventContinuation = AsyncThrowingStream<TranscriptEvent, any Error>.Continuation
+
+    /// Runs one session in its own task and returns its events. The task is
+    /// cancelled as soon as the stream terminates: when the consumer stops
+    /// listening, or when the stream is finished early (see `resultsTask`).
+    static func eventStream(
+        _ session: @escaping @Sendable (EventContinuation) async throws -> Void
+    ) -> AsyncThrowingStream<TranscriptEvent, any Error> {
+        AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await Self.run(locale: locale, audio: audio, continuation: continuation)
+                    try await session(continuation)
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Consumes the analyzer's results in a separate task. If that fails
+    /// (and was not cancelled by the session), the event stream is finished
+    /// with the error right away. That cancels the session task through
+    /// `onTermination`, so the feed loop stops instead of waiting for the
+    /// audio to end before the error shows.
+    static func resultsTask(
+        continuation: EventContinuation,
+        _ consume: sending @escaping () async throws -> Void
+    ) -> Task<Void, any Error> {
+        Task {
+            do {
+                try await consume()
+            } catch {
+                if !Task.isCancelled {
+                    continuation.finish(throwing: error)
+                }
+                throw error
+            }
         }
     }
 
@@ -82,7 +118,7 @@ public struct SpeechAnalyzerTranscriber: Transcriber {
             of: AnalyzerInput.self,
             bufferingPolicy: .bufferingNewest(inputBufferLimit)
         )
-        let results = Task {
+        let results = Self.resultsTask(continuation: continuation) {
             var tracker = SegmentTracker(origin: first.origin)
             for try await result in module.results {
                 let phrase = RecognizedPhrase(

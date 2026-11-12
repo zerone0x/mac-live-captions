@@ -8,6 +8,11 @@ import Foundation
 /// (no drift from rounding chunk times). A chunk that does not follow the
 /// previous one (first chunk, gap or overlap beyond `tolerance`) re-anchors
 /// the timeline; the adapter then resets its resampler.
+///
+/// Output times never go backwards: `SpeechAnalyzer` must not get an input
+/// that starts before earlier input (Apple docs). If a chunk's time is earlier
+/// than the end of audio already placed, the new run is anchored at that end
+/// instead (the audio is kept, shifted later).
 public struct AudioTimeline: Sendable, Hashable {
     /// Largest mismatch, in seconds, still treated as contiguous audio.
     public let tolerance: TimeInterval
@@ -15,6 +20,8 @@ public struct AudioTimeline: Sendable, Hashable {
     private var expectedNextInput: TimeInterval?
     private var anchor: TimeInterval = 0
     private var outputFrames: Int64 = 0
+    /// End of the audio placed so far, in session seconds.
+    private var placedEnd: TimeInterval?
 
     public init(tolerance: TimeInterval = 0.02) {
         precondition(tolerance >= 0, "tolerance must not be negative")
@@ -31,7 +38,7 @@ public struct AudioTimeline: Sendable, Hashable {
             discontinuous = true
         }
         if discontinuous {
-            anchor = chunkStart
+            anchor = max(chunkStart, placedEnd ?? chunkStart)
             outputFrames = 0
         }
         expectedNextInput = chunkStart + max(0, duration)
@@ -44,6 +51,7 @@ public struct AudioTimeline: Sendable, Hashable {
         precondition(sampleRate > 0, "sampleRate must be positive")
         let start = anchor + Double(outputFrames) / sampleRate
         outputFrames += Int64(max(0, frames))
+        placedEnd = anchor + Double(outputFrames) / sampleRate
         return start
     }
 }

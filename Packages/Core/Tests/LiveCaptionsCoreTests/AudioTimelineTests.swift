@@ -47,13 +47,42 @@ struct AudioTimelineTests {
         #expect(start3 == 3.5)
     }
 
-    @Test("an overlap (time going backwards) also re-anchors")
+    @Test("an overlap (time going backwards) re-anchors at the end of placed audio")
     func overlapReanchors() {
         var timeline = AudioTimeline()
         _ = timeline.accept(chunkStart: 10, duration: 1)
-        let isNewRun4 = timeline.accept(chunkStart: 2, duration: 1)
-        #expect(isNewRun4)
-        let start4 = timeline.place(frames: 100, sampleRate: 100)
-        #expect(start4 == 2)
+        let start1 = timeline.place(frames: 100, sampleRate: 100)
+        #expect(start1 == 10)
+        let isNewRun = timeline.accept(chunkStart: 2, duration: 1)
+        #expect(isNewRun)
+        // Starting at 2 would be before input already given to the analyzer.
+        let start2 = timeline.place(frames: 100, sampleRate: 100)
+        #expect(start2 == 11)
+        // The run stays contiguous from the shifted anchor.
+        let isNewRun2 = timeline.accept(chunkStart: 3, duration: 1)
+        #expect(!isNewRun2)
+        let start3 = timeline.place(frames: 100, sampleRate: 100)
+        #expect(start3 == 12)
+    }
+
+    @Test("output start times never decrease, whatever the input times")
+    func outputIsMonotonic() {
+        var timeline = AudioTimeline()
+        var last = -Double.infinity
+        for chunkStart in [5.0, 5.1, 1.0, 1.1, 0.0, 20.0, 19.5, 3.0] {
+            _ = timeline.accept(chunkStart: chunkStart, duration: 0.1)
+            let start = timeline.place(frames: 1_600, sampleRate: 16_000)
+            #expect(start >= last - 1e-9)
+            last = start + 0.1
+        }
+    }
+
+    @Test("an overlap before any audio was placed anchors at the chunk")
+    func overlapBeforePlacement() {
+        var timeline = AudioTimeline()
+        _ = timeline.accept(chunkStart: 10, duration: 1)
+        _ = timeline.accept(chunkStart: 2, duration: 1)
+        let start = timeline.place(frames: 100, sampleRate: 100)
+        #expect(start == 2)
     }
 }
