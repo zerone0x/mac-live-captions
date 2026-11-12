@@ -62,18 +62,29 @@ private func peak(_ samples: [Float]) -> Float {
     samples.reduce(0) { max($0, abs($1)) }
 }
 
-/// Feeds one second as ten 100 ms buffers and returns all output samples.
+/// Whether `count` output frames are one second at 16 kHz, less the frames
+/// the resampler holds back. AVAudioConverter keeps a constant latency
+/// (about 16 ms from 48 kHz on macOS 26) because the converter is never
+/// flushed between buffers; allow up to 30 ms.
+private func isAboutOneSecond(_ count: Int) -> Bool {
+    (16_000 - 480)...(16_000 + 16) ~= count
+}
+
+/// Feeds one second (second number `second` of a continuous signal) as ten
+/// 100 ms buffers and returns all output samples.
 private func convertOneSecond(
     _ converter: MonoPCMConverter,
     rate: Double,
     channels: Int,
+    second: Int = 0,
     _ channel: @escaping (Int, Int) -> Float
 ) throws -> [Float] {
     let frames = Int(rate / 10)
     var output: [Float] = []
     for index in 0..<10 {
         let buffer = try floatBuffer(
-            sampleRate: rate, channels: channels, frames: frames, firstFrame: index * frames, channel
+            sampleRate: rate, channels: channels, frames: frames,
+            firstFrame: (second * 10 + index) * frames, channel
         )
         output += try converter.convert(buffer)
     }
@@ -108,14 +119,19 @@ struct MonoPCMConverterTests {
         #expect(try converter.convert(buffer).isEmpty)
     }
 
-    @Test("48 kHz stereo in 100 ms buffers becomes about one second at 16 kHz", arguments: [48_000.0, 44_100.0])
+    @Test("stereo in 100 ms buffers is resampled to 16 kHz without losing frames between buffers", arguments: [48_000.0, 44_100.0])
     func resamplesAcrossBuffers(rate: Double) throws {
         let converter = MonoPCMConverter()
         let samples = try convertOneSecond(converter, rate: rate, channels: 2) { _, frame in
             sine(frame, rate: rate)
         }
-        // The resampler keeps a few milliseconds of latency between calls.
-        #expect(abs(samples.count - 16_000) <= 160, "got \(samples.count) samples for 1 s")
+        let next = try convertOneSecond(converter, rate: rate, channels: 2, second: 1) { _, frame in
+            sine(frame, rate: rate)
+        }
+        #expect(isAboutOneSecond(samples.count), "got \(samples.count) samples for the first second")
+        // Once primed, the latency is constant: one second in, one second out.
+        // A converter rebuilt per buffer would lose the latency every 100 ms.
+        #expect(abs(next.count - 16_000) <= 16, "got \(next.count) samples for the second second")
         #expect(peak(samples) > 0.3)
         #expect(peak(samples) <= 1.01, "mixing identical channels must not clip")
     }
@@ -151,7 +167,7 @@ struct MonoPCMConverterTests {
             }
             samples += try converter.convert(buffer)
         }
-        #expect(abs(samples.count - 16_000) <= 160)
+        #expect(isAboutOneSecond(samples.count), "got \(samples.count) samples")
         #expect(peak(samples) > 0.3)
         #expect(peak(samples) <= 1.01)
     }
@@ -164,7 +180,7 @@ struct MonoPCMConverterTests {
         converter.reset()
         let third = try convertOneSecond(converter, rate: 48_000, channels: 2) { _, frame in sine(frame, rate: 48_000) }
         for samples in [first, second, third] {
-            #expect(abs(samples.count - 16_000) <= 160)
+            #expect(isAboutOneSecond(samples.count), "got \(samples.count) samples")
         }
     }
 }
