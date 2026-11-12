@@ -27,10 +27,11 @@ struct AudioProcessingTests {
     func capacityCoversOutput() {
         for frames in [1, 7, 480, 512, 1_023, 4_096] {
             for rate in [22_050.0, 44_100.0, 48_000.0, 96_000.0] {
-                let capacity = CaptureFormat.convertedFrameCapacity(
+                let capacity: Int = CaptureFormat.convertedFrameCapacity(
                     inputFrames: frames, inputRate: rate, outputRate: CaptureFormat.sampleRate, headroom: 0
                 )
-                #expect(Double(capacity) >= Double(frames) * CaptureFormat.sampleRate / rate)
+                let needed: Double = Double(frames) * CaptureFormat.sampleRate / rate
+                #expect(Double(capacity) >= needed)
             }
         }
     }
@@ -48,7 +49,7 @@ struct AudioProcessingTests {
 
     @Test("silence is -100 dB and an empty meter")
     func silence() {
-        let level = AudioLevel(samples: Array(repeating: 0, count: 160))
+        let level = AudioLevel(samples: [Float](repeating: 0, count: 160))
         #expect(level == .silence)
         #expect(level.decibels == -100)
         #expect(level.meterFraction == 0)
@@ -59,8 +60,12 @@ struct AudioProcessingTests {
     func halfScale() {
         let level = AudioLevel(samples: [0.5, -0.5, 0.5, -0.5])
         #expect(level.peak == 0.5)
-        #expect(abs(level.decibels - (-6.0206)) < 0.001)
-        #expect(abs(level.meterFraction - (1 - 6.0206 / 60)) < 0.001)
+        let expectedDecibels: Float = -6.0206
+        let decibelError: Float = abs(level.decibels - expectedDecibels)
+        #expect(decibelError < 0.001)
+        let expectedFraction: Double = 1 - 6.0206 / 60
+        let fractionError: Double = abs(level.meterFraction - expectedFraction)
+        #expect(fractionError < 0.001)
     }
 
     // MARK: Chunking
@@ -71,16 +76,23 @@ struct AudioProcessingTests {
         #expect(assembler.framesPerChunk == 1_600)
 
         // 1000 frames: not enough for a chunk yet.
-        #expect(assembler.append(Array(repeating: 0.1, count: 1_000)).isEmpty)
+        #expect(assembler.append([Float](repeating: 0.1, count: 1_000)).isEmpty)
         // +2500 = 3500 frames: two chunks, 300 pending.
-        let chunks = assembler.append(Array(repeating: 0.2, count: 2_500))
+        let chunks = assembler.append([Float](repeating: 0.2, count: 2_500))
         #expect(chunks.count == 2)
-        #expect(chunks.map(\.startTime) == [0, 0.1])
-        #expect(chunks.allSatisfy { $0.samples.count == 1_600 && $0.origin == .system && $0.sampleRate == 16_000 })
+        let startTimes: [TimeInterval] = chunks.map(\.startTime)
+        #expect(startTimes == [0, 0.1])
+        for chunk in chunks {
+            #expect(chunk.samples.count == 1_600)
+            #expect(chunk.origin == .system)
+            #expect(chunk.sampleRate == 16_000)
+        }
         // Sample order is kept across appends.
-        #expect(chunks[0].samples.prefix(1_000).allSatisfy { $0 == 0.1 })
-        #expect(chunks[0].samples.suffix(600).allSatisfy { $0 == 0.2 })
-        #expect(abs(assembler.capturedDuration - 3_500.0 / 16_000) < 1e-9)
+        let first: [Float] = chunks[0].samples
+        #expect(first[0..<1_000].allSatisfy { $0 == 0.1 })
+        #expect(first[1_000...].allSatisfy { $0 == 0.2 })
+        let durationError: Double = abs(assembler.capturedDuration - 3_500.0 / 16_000)
+        #expect(durationError < 1e-9)
 
         let tail = assembler.flush()
         #expect(tail?.samples.count == 300)
@@ -91,24 +103,29 @@ struct AudioProcessingTests {
     @Test("chunks are contiguous: each starts where the previous ended")
     func contiguous() {
         var assembler = AudioChunkAssembler(origin: .microphone, sampleRate: 16_000, chunkDuration: 0.05)
+        let sizes: [Int] = [17, 4_000, 1, 799, 2_048, 333]
         var chunks: [AudioChunk] = []
-        for size in [17, 4_000, 1, 799, 2_048, 333] {
-            chunks += assembler.append(Array(repeating: 0, count: size))
+        for size in sizes {
+            chunks += assembler.append([Float](repeating: 0, count: size))
         }
         if let tail = assembler.flush() { chunks.append(tail) }
-        #expect(chunks.reduce(0) { $0 + $1.samples.count } == 17 + 4_000 + 1 + 799 + 2_048 + 333)
+        let emitted: Int = chunks.map(\.samples.count).reduce(0, +)
+        let appended: Int = sizes.reduce(0, +)
+        #expect(emitted == appended)
         for (previous, next) in zip(chunks, chunks.dropFirst()) {
-            #expect(abs(previous.endTime - next.startTime) < 1e-9)
+            let gap: Double = abs(previous.endTime - next.startTime)
+            #expect(gap < 1e-9)
         }
     }
 
     @Test("reset starts a new session at time zero")
     func reset() {
         var assembler = AudioChunkAssembler(origin: .system)
-        _ = assembler.append(Array(repeating: 0, count: 5_000))
+        _ = assembler.append([Float](repeating: 0, count: 5_000))
         assembler.reset()
         #expect(assembler.capturedDuration == 0)
-        #expect(assembler.append(Array(repeating: 0, count: 1_600)).first?.startTime == 0)
+        let next = assembler.append([Float](repeating: 0, count: 1_600))
+        #expect(next.first?.startTime == 0)
     }
 
     // MARK: Silence
@@ -124,8 +141,10 @@ struct AudioProcessingTests {
         for _ in 0..<12 {
             events.append(monitor.process(quiet, duration: 0.1))
         }
-        #expect(events.compactMap { $0 } == [.silenceDetected])
-        #expect(events.firstIndex(of: .silenceDetected) == 9) // 10 x 0.1 s = 1 s
+        let reported: [AudioCaptureEvent] = events.compactMap { $0 }
+        #expect(reported == [.silenceDetected])
+        let index: Int? = events.firstIndex(of: .silenceDetected)
+        #expect(index == 9) // 10 x 0.1 s = 1 s
         #expect(monitor.isSilent)
         #expect(monitor.process(loud, duration: 0.1) == .soundDetected)
         #expect(monitor.process(loud, duration: 0.1) == nil)
@@ -153,7 +172,8 @@ struct AudioProcessingTests {
     @Test("retry backs off exponentially, capped, then gives up")
     func retryPolicy() {
         let policy = CaptureRetryPolicy()
-        #expect((1...6).map { policy.delay(forAttempt: $0) } == [2, 4, 8, 16, 30, 30])
+        let delays: [TimeInterval?] = (1...6).map { policy.delay(forAttempt: $0) }
+        #expect(delays == [2, 4, 8, 16, 30, 30])
         #expect(policy.delay(forAttempt: 7) == nil)
         #expect(policy.delay(forAttempt: 0) == nil)
         #expect(CaptureRetryPolicy(maxAttempts: 0).delay(forAttempt: 1) == nil)
