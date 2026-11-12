@@ -136,35 +136,95 @@ struct AudioProcessingTests {
         let quiet = AudioLevel.silence
         let loud = AudioLevel(peak: 0.3, rms: 0.1)
 
-        #expect(monitor.process(loud, duration: 0.1) == nil)
+        #expect(monitor.process(loud, at: 0) == nil)
         var events: [AudioCaptureEvent?] = []
-        for _ in 0..<12 {
-            events.append(monitor.process(quiet, duration: 0.1))
+        for block in 1...12 {
+            events.append(monitor.process(quiet, at: Double(block) * 0.1))
         }
         let reported: [AudioCaptureEvent] = events.compactMap { $0 }
         #expect(reported == [.silenceDetected])
         let index: Int? = events.firstIndex(of: .silenceDetected)
-        #expect(index == 9) // 10 x 0.1 s = 1 s
+        #expect(index == 9) // 10 x 0.1 s = 1 s after the last loud block
         #expect(monitor.isSilent)
-        #expect(monitor.process(loud, duration: 0.1) == .soundDetected)
-        #expect(monitor.process(loud, duration: 0.1) == nil)
+        #expect(monitor.process(loud, at: 1.3) == .soundDetected)
+        #expect(monitor.process(loud, at: 1.4) == nil)
         #expect(!monitor.isSilent)
     }
 
     @Test("a short pause does not count as no audio")
     func shortPause() {
         var monitor = SilenceMonitor(timeout: 5)
-        for _ in 0..<40 { #expect(monitor.process(.silence, duration: 0.1) == nil) }
-        #expect(monitor.process(AudioLevel(peak: 0.2, rms: 0.1), duration: 0.1) == nil)
-        for _ in 0..<40 { #expect(monitor.process(.silence, duration: 0.1) == nil) }
+        monitor.reset(at: 0)
+        for block in 1...40 { #expect(monitor.process(.silence, at: Double(block) * 0.1) == nil) }
+        #expect(monitor.process(AudioLevel(peak: 0.2, rms: 0.1), at: 4.1) == nil)
+        for block in 42...81 { #expect(monitor.process(.silence, at: Double(block) * 0.1) == nil) }
     }
 
-    @Test("near-silent dither below the threshold still counts as silence")
+    @Test("no audio is detected when no buffers arrive at all, from the timer alone")
+    func silenceWithoutBuffers() {
+        // ScreenCaptureKit may stop delivering buffers while nothing plays.
+        var monitor = SilenceMonitor(timeout: 5)
+        monitor.reset(at: 100)
+        #expect(monitor.check(at: 102) == nil)
+        #expect(monitor.check(at: 104.9) == nil)
+        #expect(monitor.check(at: 105) == .silenceDetected)
+        #expect(monitor.check(at: 106) == nil, "reported once")
+        #expect(monitor.process(AudioLevel(peak: 0.5, rms: 0.2), at: 107) == .soundDetected)
+    }
+
+    @Test("a loud block restarts the timer that runs without buffers")
+    func loudBlockRestartsTimer() {
+        var monitor = SilenceMonitor(timeout: 5)
+        monitor.reset(at: 0)
+        #expect(monitor.process(AudioLevel(peak: 0.5, rms: 0.2), at: 3) == nil)
+        #expect(monitor.check(at: 7.9) == nil)
+        #expect(monitor.check(at: 8) == .silenceDetected)
+    }
+
+    @Test("the first call starts the clock when reset was never called")
+    func firstCallStartsClock() {
+        var monitor = SilenceMonitor(timeout: 1)
+        #expect(monitor.check(at: 50) == nil)
+        #expect(monitor.check(at: 50.5) == nil)
+        #expect(monitor.check(at: 51) == .silenceDetected)
+    }
+
+    @Test("reset forgets reported silence, for a reconnected stream")
+    func resetForgetsSilence() {
+        var monitor = SilenceMonitor(timeout: 1)
+        monitor.reset(at: 0)
+        #expect(monitor.check(at: 1) == .silenceDetected)
+        monitor.reset(at: 2)
+        #expect(!monitor.isSilent)
+        #expect(monitor.check(at: 2.5) == nil)
+        #expect(monitor.check(at: 3) == .silenceDetected)
+    }
+
+    @Test("peak exactly at the threshold is silence, the next float up is sound")
+    func thresholdBoundary() {
+        let threshold: Float = 1e-4
+        var monitor = SilenceMonitor(threshold: threshold, timeout: 0.2)
+        let atThreshold = AudioLevel(peak: threshold, rms: threshold)
+        let justAbove = AudioLevel(peak: threshold.nextUp, rms: threshold)
+        #expect(monitor.isSilence(atThreshold))
+        #expect(!monitor.isSilence(justAbove))
+
+        monitor.reset(at: 0)
+        #expect(monitor.process(atThreshold, at: 0.1) == nil)
+        #expect(monitor.process(atThreshold, at: 0.2) == .silenceDetected)
+        #expect(monitor.process(justAbove, at: 0.3) == .soundDetected)
+    }
+
+    @Test("default threshold is about -80 dBFS: dither below it is silence")
     func ditherIsSilence() {
-        var monitor = SilenceMonitor(threshold: 1e-4, timeout: 0.2)
+        var monitor = SilenceMonitor()
+        #expect(monitor.threshold == 1e-4)
         let dither = AudioLevel(samples: [0.00005, -0.00003, 0.00008])
-        #expect(monitor.process(dither, duration: 0.1) == nil)
-        #expect(monitor.process(dither, duration: 0.1) == .silenceDetected)
+        #expect(monitor.isSilence(dither))
+        #expect(!monitor.isSilence(AudioLevel(samples: [0.0002])))
+        monitor.reset(at: 0)
+        #expect(monitor.process(dither, at: 4.9) == nil)
+        #expect(monitor.process(dither, at: 5) == .silenceDetected)
     }
 
     // MARK: Retry

@@ -261,3 +261,59 @@ and may be missing.
 **Consequences.** #11 wires `SystemSpeechAssets` into the menu states and
 feeds `SpeechAnalyzerTranscriber` events into a `CaptionStore`. Latency still
 needs measuring on a real Mac.
+
+## 0012: Capture runs have tokens; retries reset after a healthy period; "no audio" runs on a clock
+
+2026-11-12 · #22
+
+**Context.** Verifying #19 found start/stop races in both capture sources:
+`stop()` during `start()` left the output-device listener installed; a
+microphone configuration change or a permission prompt racing `stop()` could
+start the engine after stop; a pending reconnect was never cancelled, so stop
+then start on one source could open a second stream; and status callbacks
+could reach the menu out of order ("Capturing audio" after stop). The retry
+counter reset whenever a stream started, so a stream that died right after
+starting retried every 2 s forever. "No audio" and the device-change check
+assumed ScreenCaptureKit keeps sending silent buffers while nothing plays,
+which nobody has confirmed. `MonoPCMConverter` had no tests because the App
+target has none.
+
+**Decision.**
+
+- Every run of a source, from `start()` to `stop()` or a final error, gets a
+  `CaptureToken` from `CaptureGenerations` (Core), kept under the source's
+  lock with the state it guards. Every path that resumes later (after an
+  `await` in `start()`, a reconnect delay, a device-change check, a
+  configuration change, a sample or tap callback, the silence timer) checks
+  its token in the same critical section as the change it makes, and undoes
+  what it built if the run ended. `stop()` also cancels the stored reconnect
+  task. If `stop()` runs while `start()` is starting, `start()` returns the
+  chunk stream `stop()` already finished; the `AudioSource` protocol is
+  unchanged.
+- Status goes through `CaptureStatusReporter` (Core): it applies events and
+  calls `onStatus` under one lock, so delivery order is apply order, and it
+  drops events of any run but the open one, including everything after the
+  run's `.stopped`. `onStatus` keeps its signature but must return quickly and
+  not call back into the source. A source reports `.stopped` before it
+  finishes the chunk stream. Consumers keep the order with one `AsyncStream`
+  and one consumer (the debug probe does), not a `Task` per update.
+- `CaptureRetryTracker` (Core) resets the attempt count only when the stream
+  that failed had been up for at least 10 s (wall clock, monotonic). Measuring
+  uptime instead of buffers makes the reset independent of whether silent
+  buffers arrive.
+- `SilenceMonitor` runs on a monotonic clock: blocks update it, and the
+  system source also checks it from a 0.5 s timer, so "no audio" appears
+  after 5 s whether or not any buffers arrive. The device-change check still
+  rebuilds the stream when no buffer at all arrives within 4 s; if that only
+  means nothing is playing, the rebuild costs a short reconnect, loses no
+  audio and is not counted as a failure.
+- `MonoPCMConverter` and `makePCMBuffer` move to a third local package,
+  `Packages/AudioAdapter` (module `LiveCaptionsAudio`), following 0010, so the
+  converter is tested with Swift Testing on CI. The capture sources stay in
+  App.
+
+**Consequences.** #11 can keep one source per session and restart it safely,
+and can drive menu state from `onStatus` as long as it consumes updates in
+order. Whether ScreenCaptureKit delivers silent buffers is no longer load
+bearing; it is still worth noting on the first real-Mac test. The races
+themselves need a real Mac to reproduce; the PR for #22 lists the steps.

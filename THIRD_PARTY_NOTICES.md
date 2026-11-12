@@ -3,7 +3,8 @@
 ## Audicap
 
 Parts of the audio capture code in `App/Sources/Audio/` (`SystemAudioSource.swift`,
-`MicrophoneAudioSource.swift`, `PCMConversion.swift`) are adapted from
+`MicrophoneAudioSource.swift`) and `Packages/AudioAdapter/Sources/LiveCaptionsAudio/`
+(`PCMConversion.swift`) are adapted from
 [Audicap](https://github.com/ShinoKana/audicap) (`AudicapApp.swift`: `SCKCapture`,
 `MicCapture`, `builtInInputDeviceID()`, `screenRecordingGranted()`).
 

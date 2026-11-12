@@ -8,7 +8,7 @@ APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
 SHOTS    := build/screenshots
 
-.PHONY: all generate test test-core test-speech build package verify screenshots check-offline open clean
+.PHONY: all generate test test-core test-audio test-speech build package verify screenshots check-offline open clean
 
 all: check-offline test build
 
@@ -17,11 +17,15 @@ generate:
 	xcodegen generate
 
 ## Run all package tests (Swift Testing).
-test: test-core test-speech
+test: test-core test-audio test-speech
 
 ## Core logic tests: pure Swift, no hardware.
 test-core:
 	swift test --package-path Packages/Core
+
+## Audio adapter tests: PCM conversion with AVFoundation, no capture hardware.
+test-audio:
+	swift test --package-path Packages/AudioAdapter
 
 ## Speech adapter tests. The real-audio test needs `say` and the en-US speech
 ## model; it skips with a printed reason when they are missing
