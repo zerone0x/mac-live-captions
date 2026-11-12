@@ -52,6 +52,19 @@ yaml_packages() {
   ' "$1"
 }
 
+# Manifest files under a root. The default scan (root ".") skips build output
+# and the fixtures of this check.
+candidates() {
+  local prune
+  if [[ "$1" == "." ]]; then
+    prune=(-path ./.git -o -path ./build -o -path ./scripts/fixtures -o -name .build -o -name DerivedData)
+  else
+    prune=(-name .build -o -name DerivedData)
+  fi
+  find "$1" \( "${prune[@]}" \) -prune -o -type f \( -name Package.swift -o -name Package.resolved \
+    -o -name project.yml -o -name project.yaml -o -name 'Podfile*' -o -name 'Cartfile*' \) -print | sort
+}
+
 for root in "${roots[@]}"; do
   [[ -e "$root" ]] || { echo "check-dependencies: no such path: $root" >&2; exit 2; }
   while IFS= read -r file; do
@@ -77,18 +90,7 @@ for root in "${roots[@]}"; do
         echo "check-dependencies: $(basename "$file") is not allowed" >&2
         ;;
     esac
-  done < <(
-    # The default scan skips build output and this script's own fixtures.
-    if [[ "$root" == "." ]]; then
-      find . \( -path ./.git -o -path ./build -o -path ./scripts/fixtures -o -name .build -o -name DerivedData \) -prune \
-        -o -type f \( -name Package.swift -o -name Package.resolved -o -name project.yml -o -name project.yaml \
-        -o -name 'Podfile*' -o -name 'Cartfile*' \) -print
-    else
-      find "$root" \( -name .build -o -name DerivedData \) -prune \
-        -o -type f \( -name Package.swift -o -name Package.resolved -o -name project.yml -o -name project.yaml \
-        -o -name 'Podfile*' -o -name 'Cartfile*' \) -print
-    fi | sort
-  )
+  done < <(candidates "$root")
 done
 
 if [[ $status -ne 0 ]]; then
