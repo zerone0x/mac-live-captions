@@ -18,7 +18,7 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 
 | Stage | Contract (Core) | Real implementation | Lives in | Wave |
 |---|---|---|---|---|
-| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>` | ScreenCaptureKit system audio; microphone later, opt-in | App | #7 |
+| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>`; `AudioCaptureStatus` state machine, `AudioChunkAssembler`, `SilenceMonitor` | `SystemAudioSource` (ScreenCaptureKit), `MicrophoneAudioSource` (opt-in, off by default) | App (`Sources/Audio/`), Core (logic) | #7 |
 | Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>` | `SpeechAnalyzer` + `SpeechTranscriber` (en-US) | App (adapter), Core (logic) | #8 |
 | CaptionStore | concrete type, pure logic | n/a (no platform code) | Core | #8 |
 | Overlay | `protocol CaptionPresenter` (`@MainActor`) | notch overlay window | App | #9 |
@@ -28,7 +28,10 @@ Value types shared by the stages (all `Sendable`, all in Core):
 
 - `AudioChunk`: mono Float32 samples, sample rate, `AudioOrigin` (`system` or
   `microphone`), start time in session seconds. No AVFoundation types, so fakes
-  are trivial; adapters convert to and from `AVAudioPCMBuffer`.
+  are trivial; adapters convert to and from `AVAudioPCMBuffer`. Real sources
+  emit contiguous 100 ms chunks at 16 kHz (`CaptureFormat`, DECISIONS 0006).
+- `AudioCaptureStatus` / `AudioCaptureError`: capture health (permission
+  denied, no audio, reconnecting, failed) as explicit states.
 - `TranscriptSegment`: stable `SegmentID`, text, time range, origin.
 - `TranscriptEvent`: `.volatile(segment)` (may still change, drives the live
   line only) or `.final(segment)` (stable, goes into the transcript).
@@ -42,6 +45,7 @@ reshape its protocol; record the change in DECISIONS.md.
 ```
 App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit, Speech)
   Sources/                @main app, menu, adapters that conform to Core protocols
+    Audio/                system audio + microphone sources, debug capture menu
   Info.plist              LSUIElement, usage strings
   LiveCaptions.entitlements
 Packages/Core/            local Swift package "Core", product LiveCaptionsCore
