@@ -110,7 +110,10 @@ Rules:
 - `make build` generates the project with XcodeGen and builds an ad-hoc signed
   arm64 app with hardened runtime.
 - `make package` also runs `scripts/verify-app.sh` (LSUIElement, usage strings,
-  arm64, signature, entitlements) and zips the app.
+  arm64, signature with hardened runtime, exactly the expected entitlements so
+  no `get-task-allow`, stripped binary) and zips the app. It is meant for
+  Release builds; `scripts/verify-app-selftest.sh` checks that it rejects bad
+  bundles.
 - `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages), `package` and
   `check-linked-frameworks` on a
   `macos-26` runner for every PR and push to `main`, and uploads the zip as a

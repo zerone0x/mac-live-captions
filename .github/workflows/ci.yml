@@ -49,6 +49,9 @@ jobs:
       - name: Core tests
         run: make test
 
+      - name: Self-test the app verifier
+        run: scripts/verify-app-selftest.sh
+
       - name: Build, verify and package app
         run: make package
 

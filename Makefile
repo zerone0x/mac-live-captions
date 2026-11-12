@@ -45,7 +45,8 @@ package: build verify
 	ditto -c -k --sequesterRsrc --keepParent $(APP) $(ZIP)
 	@echo "Packaged $(ZIP)"
 
-## Sanity-check the built bundle: menu-bar only, usage strings, signature, arm64.
+## Sanity-check the built bundle: menu-bar only, usage strings, arm64, signature
+## with hardened runtime and exactly the expected entitlements, stripped binary.
 verify:
 	scripts/verify-app.sh $(APP)
 

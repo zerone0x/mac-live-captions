@@ -64,6 +64,13 @@ TCC permissions either way.
 **Decision.** The app is not sandboxed. Hardened runtime is on (ready for
 notarization later) with the `com.apple.security.device.audio-input`
 entitlement. CI builds are ad-hoc signed (`CODE_SIGN_IDENTITY = -`).
+Ad-hoc signing makes Xcode sign "to run locally" and inject
+`com.apple.security.get-task-allow`, which lets any same-user process attach
+a debugger and which notarization rejects, so the Release configuration sets
+`CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO` and strips the binary (dSYM kept
+beside it); Debug keeps both for local debugging. `scripts/verify-app.sh`
+fails unless the signature has hardened runtime and exactly the audio-input
+entitlement, and the binary has no debug map (#24).
 Info.plist carries `LSUIElement` (menu bar only) and usage strings for audio
 capture, microphone and speech recognition.
 
