@@ -29,8 +29,14 @@ archs="$(lipo -archs "$binary")"
 
 codesign --verify --deep --strict "$app" || fail "signature does not verify"
 
+# Tool output is captured first and then searched, never piped into
+# `grep -q`: grep exits at the first match, the producer dies of SIGPIPE and
+# with pipefail the pipeline reports failure, so a match would read as "no
+# match" (and a failing tool would read as "clean").
+
 # Hardened runtime must be on: "CodeDirectory ... flags=0x10000(runtime)".
-codesign -d --verbose=2 "$app" 2>&1 | grep -Eq '^CodeDirectory .*flags=0x[0-9a-f]+\([^)]*runtime' \
+signature="$(codesign -d --verbose=2 "$app" 2>&1)" || fail "cannot read signature details"
+grep -Eq '^CodeDirectory .*flags=0x[0-9a-f]+\([^)]*runtime' <<<"$signature" \
   || fail "hardened runtime is not enabled in the signature"
 
 # The signed entitlements must be exactly the expected set. In particular
@@ -54,10 +60,13 @@ fi
 
 # The shipped binary must be stripped: no debug map (N_OSO/N_SO stabs) that
 # points at build-machine object files such as /Users/runner/work/....
-if nm -a "$binary" 2>/dev/null | grep -Eq ' (OSO|SO) '; then
+symbols="$(nm -a "$binary")" || fail "cannot list symbols of $binary"
+stab_re=' (OSO|SO) '
+if [[ "$symbols" =~ $stab_re ]]; then
   fail "binary is not stripped (debug map with build paths present)"
 fi
-if strings -a "$binary" | grep -q '/Users/runner/'; then
+text="$(strings -a "$binary")" || fail "cannot list strings of $binary"
+if [[ "$text" == *"/Users/runner/"* ]]; then
   fail "binary contains /Users/runner/ build paths"
 fi
 
