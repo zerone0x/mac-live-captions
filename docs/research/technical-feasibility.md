@@ -19,7 +19,7 @@
 | 能否在不用虚拟声卡、不加机器人的情况下拿到系统音频？ | 能。有两条官方路径：ScreenCaptureKit 音频（macOS 13+）和 Core Audio process tap（macOS 14.2+）。首版建议沿用 Audicap 已经跑通的 ScreenCaptureKit。 | 高 |
 | Audicap 适合当底座吗？ | 适合「拆件复用」，不适合整仓 fork。采集、识别、多语种仲裁和探针这四块值得拿；界面、归档、云端校正和翻译都不要。仓库是 MIT 许可，但只有 1 位维护者、1 个 star，作者自述只在 1 台机器上测过。 | 高 |
 | SpeechTranscriber 能做中英会议吗？ | 中文和英文分别都支持，但单个 transcriber 只能识别一种 locale，也**没有语种识别**。句间切换可以靠多条 locale 通道并行、按置信度仲裁来解决（Audicap 的做法）。**句内混说没有官方方案**，是最大的质量风险。 | 中 |
-| 有更擅长中英混说的端侧模型吗？ | Qwen3-ASR-0.6B（Apache-2.0）声称支持 code-switch，并且已有 MLX 移植。SenseVoiceSmall 可以通过 FluidAudio 在 ANE 上运行，带自动语种识别。两者都需要在 spike 中和 SpeechTranscriber 做同场对比。Whisper 不适合实时字幕。 | 中 |
+| 有更擅长中英混说的端侧模型吗？ | Qwen3-ASR-0.6B（Apache-2.0）官方只称支持 52 种语言和方言的语种识别，句内中英混说能力**未核实**（需 spike 实测），已有 MLX 移植。SenseVoiceSmall 可以通过 FluidAudio 在 ANE 上运行，带自动语种识别。两者都需要在 spike 中和 SpeechTranscriber 做同场对比。Whisper 不适合实时字幕。 | 中 |
 | 端侧摘要能否在 10 秒内处理三分钟窗口？ | 窗口装得下：约 2–2.5K token，低于 AFM Core 4K 的上下文上限（推算）。速度取决于输出长度和机型，需要实测。用 `streamResponse` 先出第一条要点，能明显缩短体感等待。 | 中 |
 | 引用能否被保证在冻结范围内？ | 能从结构上保证：在运行时用 `DynamicGenerationSchema` 加 `anyOf` 把证据 ID 限定为该窗口内的片段 ID，模型就无法编造 ID。「引用是否真的支持要点」仍需要程序校验加人工评测。 | 高（结构）／中（语义） |
 | 最大的产品风险 | ① Apple Intelligence 在中国大陆不可用，而首要用户恰好是中文用户；② 句内中英混说；③ 外放时麦克风会重复收录系统声音。 | — |
@@ -143,7 +143,7 @@
 | 引擎 | 许可证 | 中文 / 中英混说 | 流式 | Apple Silicon 速度（来源） | Swift 集成 |
 |---|---|---|---|---|---|
 | **SpeechTranscriber** | 系统自带 | zh-CN 支持；每个 transcriber 单 locale，无语种识别 [25][33] | 原生支持，有 volatile 与 final [26] | 70× (M4) [33]，60–97× [3] | 原生 |
-| **Qwen3-ASR-0.6B / 1.7B** | Apache-2.0 [48][49][78] | 52 种语言和方言，自带语种识别；技术报告称「supports cross-lingual, code-switched scenarios」[49] | 模型支持 1–8 s 动态注意力窗口的流式 [49]，但官方工具链的流式**只在 vLLM 后端可用**，且「does not support batch inference or returning timestamps」[48] | 官方只给出 GPU 并发吞吐（TTFT 92 ms，并发 128 时 2000×）[49]；Mac 上的速度**未核实** | 有 MLX 移植（mlx-audio [50]；Hugging Face 上有 `mlx-community/Qwen3-ASR-0.6B-8bit`、`-4bit` 等 [81]），需要自行包装成 Swift 或子进程 |
+| **Qwen3-ASR-0.6B / 1.7B** | Apache-2.0 [48][49][78] | 52 种语言和方言，自带语种识别 [48][78]；官方资料没有对句内 code-switching 作出声明，混说能力**未核实**，需在 spike 中实测 | 模型支持 1–8 s 动态注意力窗口的流式 [49]，但官方工具链的流式**只在 vLLM 后端可用**，且「does not support batch inference or returning timestamps」[48] | 官方只给出 GPU 并发吞吐（TTFT 92 ms，并发 128 时 2000×）[49]；Mac 上的速度**未核实** | 有 MLX 移植（mlx-audio [50]；Hugging Face 上有 `mlx-community/Qwen3-ASR-0.6B-8bit`、`-4bit` 等 [81]），需要自行包装成 Swift 或子进程 |
 | **SenseVoiceSmall** | 代码 MIT [44]；权重使用 FunASR Model License，要求保留署名和模型名 [45][46] | 已发布的权重支持普通话、粤语、英语、日语、韩语，自动语种识别 [44] | 非自回归批处理模型 [44]，需要 VAD 切段后做伪流式 | 官方称比 Whisper-Small 快 5 倍以上 [44]；FluidAudio 有 CoreML/ANE 版本 [23] | FluidAudio `SenseVoiceManager`（Apache-2.0）[21][23] |
 | **Fun-ASR-Nano-2512** | Apache-2.0 [80] | 中文（含 7 种方言）、英语、日语 [80]；中英混说能力**未核实** | 模型卡称支持「low-latency real-time transcription」[80] | Mac 上的速度**未核实** | 未见 Swift、CoreML 或 MLX 移植（**未核实**） |
 | **Paraformer-large (zh)** | Apache-2.0 [47] | 普通话 [23][47]；混说能力**未核实** | 批处理 [23] | 未见 Mac 数据 | FluidAudio `ParaformerManager` [23] |
@@ -190,7 +190,7 @@ Segment {
   | macOS 27 | AFM 3 Core（3B，「4-8K tokens context」）或 AFM 3 Core Advanced（20B 稀疏，「8K tokens context」） | 见左 |
 
   M1 及以上的 Mac 运行 Core；M3 及以上的 Mac 在 macOS 27 上运行 Core Advanced [56]。每台设备上只有一个端侧模型，应用不能自己选 [56]。实际可用的上下文以运行时的 `contextSize` 为准 [53][56]。
-- **4K 上下文的算法**：4096 个 token 是「instructions, prompts, and outputs」三者之和；中文、日文、韩文「one token per character」[54][55]。生成的结构（Generable schema）也会被转成 JSON schema，同样占用上下文 [55][60]。
+- **4K 上下文的算法**：4096 个 token 是「instructions, prompts, and outputs」三者之和；对中文、日文、韩文，「a token typically represents one character」[55]。生成的结构（Generable schema）也会被转成 JSON schema，同样占用上下文 [55][60]。
 - **中文支持**：Apple Intelligence 支持 Chinese (simplified)／(traditional) 等 16 种语言 [65]。框架会检测输入语言，不支持时抛 `unsupportedLanguageOrLocale` [58]。可以用 `supportsLocale(_:)` 预检 [58]。中英夹杂的输入是否会触发这个错误，**未核实**。
 - **地区限制（关键）**：「Apple Intelligence features will not currently work for supported devices purchased in China mainland」；在中国大陆境外购买的设备，如果人在中国大陆且 Apple 账户地区也是中国大陆，同样不可用 [65]。macOS 27 上 Apple Intelligence 默认开启，不能关闭 [56]，但这不改变地区限制。
 - **能力边界**：文档把「Summarize」列为适合的任务，同时把逻辑推理和计算列为「may not be suitable」[59]。
