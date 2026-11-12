@@ -428,7 +428,7 @@ extension SystemAudioSource: SCStreamOutput, SCStreamDelegate {
         let current = lock.withLock { () -> (CaptureToken, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
             guard self.stream === stream, let run = runs.current else { return nil }
             bufferCount += 1
-            return (run, continuation)
+            return (run, self.continuation)
         }
         guard let current,
               let buffer = makePCMBuffer(from: sampleBuffer),

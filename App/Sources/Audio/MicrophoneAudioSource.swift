@@ -97,8 +97,8 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
     func stop() async {
         let taken = lock.withLock { () -> (CaptureToken, Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
             guard let run = runs.end() else { return nil }
-            defer { continuation = nil }
-            return (run, detachEngine(), continuation)
+            defer { self.continuation = nil }
+            return (run, detachEngine(), self.continuation)
         }
         guard let taken else { return }
         let (run, running, continuation) = taken
@@ -242,8 +242,8 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
     private func finish(_ run: CaptureToken, throwing error: AudioCaptureError) -> Bool {
         let taken = lock.withLock { () -> (Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
             guard runs.end(run) else { return nil }
-            defer { continuation = nil }
-            return (detachEngine(), continuation)
+            defer { self.continuation = nil }
+            return (detachEngine(), self.continuation)
         }
         guard let taken else { return false }
         let (running, continuation) = taken
