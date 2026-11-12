@@ -43,6 +43,9 @@ jobs:
       - name: Check caption path stays offline
         run: make check-offline
 
+      - name: Self-test the offline check
+        run: scripts/check-offline-selftest.sh
+
       - name: Core tests
         run: make test
 
@@ -52,7 +55,7 @@ jobs:
       - name: Upload app artifact
         uses: actions/upload-artifact@v6
         with:
-          name: LiveCaptions-${{ github.sha }}
+          name: LiveCaptions-${{ github.event.pull_request.head.sha || github.sha }}
           path: build/LiveCaptions.zip
           if-no-files-found: error
           retention-days: 14
