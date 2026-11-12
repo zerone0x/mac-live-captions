@@ -39,8 +39,13 @@ Every PR and every push to `main` builds the app on GitHub Actions.
    the menu. It plays a short scripted English feed at the notch (or in a pill
    under the menu bar on displays without a notch).
 
+   To start the demo on launch (it repeats until stopped), pass
+   `--demo-captions`:
+   `LiveCaptions.app/Contents/MacOS/LiveCaptions --demo-captions`.
+
 Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
-overlay in notch and pill style.
+overlay in notch and pill style for fixed states (one finalized line,
+finalized text plus a volatile tail, a two-line wrap, two finalized lines).
 
 Each build has a new ad-hoc signature, so macOS may ask for audio permissions
 again after you install a newer build.

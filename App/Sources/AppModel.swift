@@ -35,7 +35,19 @@ final class AppModel {
         let hide = UserDefaults.standard.bool(forKey: Self.hideFromSharingKey)
         hideOverlayFromScreenSharing = hide
         overlay.hidesFromScreenSharing = hide
+
+        if CommandLine.arguments.contains(Self.demoArgument) {
+            // Give the app a moment to finish launching before the panel opens.
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(500))
+                self?.playDemo(repeating: true)
+            }
+        }
     }
+
+    /// Launch argument that starts the demo feed on launch and repeats it,
+    /// for screenshots of the running app (#23).
+    static let demoArgument = "--demo-captions"
 
     func start() {
         send(.startRequested)
@@ -63,16 +75,26 @@ final class AppModel {
 
     /// Plays the scripted English feed into the overlay, so it can be seen
     /// without audio or permissions.
-    func playDemo(_ script: CaptionDemoScript = .english) {
+    ///
+    /// With `repeating`, the feed starts over (from an empty overlay) until
+    /// stopped.
+    func playDemo(_ script: CaptionDemoScript = .english, repeating: Bool = false) {
         demoTask?.cancel()
         overlay.present(.empty)
         isDemoPlaying = true
         demoTask = Task { [weak self] in
-            for step in script.steps {
-                try? await Task.sleep(for: .seconds(step.delay))
-                guard !Task.isCancelled else { return }
-                self?.overlay.present(step.snapshot)
-            }
+            repeat {
+                for step in script.steps {
+                    try? await Task.sleep(for: .seconds(step.delay))
+                    guard !Task.isCancelled else { return }
+                    self?.overlay.present(step.snapshot)
+                }
+                if repeating {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    self?.overlay.present(.empty)
+                }
+            } while repeating && !Task.isCancelled
             // Leave the last caption up; the overlay collapses when idle.
             self?.isDemoPlaying = false
             self?.demoTask = nil

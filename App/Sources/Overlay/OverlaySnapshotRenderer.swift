@@ -23,7 +23,9 @@ enum OverlaySnapshotRenderer {
 
         let notch = OverlayStyle.notch(notchWidth: 204, notchHeight: 32)
         let frames = demoFrames()
-        var failures = 0
+        // Every fixed state must exist, or the screenshots would silently shrink.
+        var failures = stateNames.count - frames.count
+        if failures > 0 { print("missing overlay states: \(failures)") }
         for (name, frame) in frames {
             for (styleName, style) in [("notch", notch), ("pill", OverlayStyle.pill)] {
                 let url = directory.appendingPathComponent("overlay-\(styleName)-\(name).png")
@@ -38,8 +40,11 @@ enum OverlaySnapshotRenderer {
         return failures
     }
 
-    /// Frames at interesting points of the demo: volatile text mid-sentence,
-    /// two lines with a volatile tail, and all text finalized.
+    /// Fixed states taken from the demo played through the real composer:
+    /// one finalized line, finalized text plus a volatile tail, a two-line wrap
+    /// with a volatile tail, and two finalized lines.
+    static let stateNames = ["1-final-line", "2-final-plus-volatile", "3-two-line-wrap-volatile", "4-two-line-final"]
+
     private static func demoFrames() -> [(String, CaptionFrame)] {
         var composer = CaptionComposer()
         var now = 0.0
@@ -48,21 +53,21 @@ enum OverlaySnapshotRenderer {
             now += step.delay
             frames.append(composer.apply(step.snapshot, at: now))
         }
-        let oneLineVolatile = frames.first { frame in
+        let finalLine = frames.first { frame in
+            frame.lines.count == 1 && !frame.lines[0].hasVolatileText
+        }
+        let finalPlusVolatile = frames.first { frame in
             frame.lines.count == 1 && frame.lines[0].hasVolatileText && !frame.lines[0].finalText.isEmpty
         }
-        let twoLinesVolatile = frames.first { frame in
+        let twoLineWrapVolatile = frames.first { frame in
             frame.lines.count == 2 && frame.lines.contains(where: \.hasVolatileText)
                 && frame.lines.contains { line in !line.finalText.isEmpty }
         }
-        let twoLinesFinal = frames.last { frame in
+        let twoLineFinal = frames.last { frame in
             frame.lines.count == 2 && !frame.lines.contains(where: \.hasVolatileText)
         }
-        return [
-            ("1-volatile-tail", oneLineVolatile),
-            ("2-two-lines-volatile", twoLinesVolatile),
-            ("3-final", twoLinesFinal),
-        ].compactMap { name, frame in frame.map { (name, $0) } }
+        return zip(stateNames, [finalLine, finalPlusVolatile, twoLineWrapVolatile, twoLineFinal])
+            .compactMap { name, frame in frame.map { (name, $0) } }
     }
 
     /// The overlay on a strip of fake desktop with a menu bar, at the size the

@@ -7,9 +7,9 @@ enum OverlayMetrics {
     static let fontSize: CGFloat = 15
     static let lineHeight: CGFloat = 20
     static let lineSpacing: CGFloat = 2
-    /// Wide enough for 42 characters of the system font at 15 pt; lines that
-    /// are still too wide shrink slightly instead of rewrapping.
-    static let textWidth: CGFloat = 400
+    /// Fits a typical 42-character line of the system font at 15 pt; lines of
+    /// wide characters shrink slightly instead of rewrapping.
+    static let textWidth: CGFloat = 340
     static let horizontalPadding: CGFloat = 18
     static let verticalPadding: CGFloat = 9
     static let cornerRadius: CGFloat = 16
