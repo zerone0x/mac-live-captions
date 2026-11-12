@@ -28,9 +28,12 @@ struct CaptionStoreTests {
         var store = CaptionStore()
         let id = SegmentID()
 
-        #expect(store.apply(.volatile(seg(id, "hel"))) == .volatileUpdated)
-        #expect(store.apply(.volatile(seg(id, "hello wor", 0, 1.5))) == .volatileUpdated)
-        #expect(store.apply(.volatile(seg(id, "hello world", 0, 2))) == .volatileUpdated)
+        let outcome1 = store.apply(.volatile(seg(id, "hel")))
+        #expect(outcome1 == .volatileUpdated)
+        let outcome2 = store.apply(.volatile(seg(id, "hello wor", 0, 1.5)))
+        #expect(outcome2 == .volatileUpdated)
+        let outcome3 = store.apply(.volatile(seg(id, "hello world", 0, 2)))
+        #expect(outcome3 == .volatileUpdated)
 
         #expect(store.volatileSegments.count == 1)
         #expect(store.volatileSegments.first?.text == "hello world")
@@ -44,7 +47,8 @@ struct CaptionStoreTests {
         var store = CaptionStore()
         let id = SegmentID()
         store.apply(.volatile(seg(id, "same")))
-        #expect(store.apply(.volatile(seg(id, "same"))) == .ignored)
+        let outcome4 = store.apply(.volatile(seg(id, "same")))
+        #expect(outcome4 == .ignored)
     }
 
     @Test("the final result keeps the volatile line's ID and flips it to final")
@@ -54,7 +58,8 @@ struct CaptionStoreTests {
         store.apply(.volatile(seg(id, "hello wor")))
         let lineBefore = store.snapshot.lines.first
 
-        #expect(store.apply(.final(seg(id, "Hello world."))) == .finalized)
+        let outcome5 = store.apply(.final(seg(id, "Hello world.")))
+        #expect(outcome5 == .finalized)
 
         #expect(store.volatileSegments.isEmpty)
         #expect(store.transcript.map(\.text) == ["Hello world."])
@@ -72,8 +77,10 @@ struct CaptionStoreTests {
         let id = SegmentID()
         store.apply(.final(seg(id, "First.")))
 
-        #expect(store.apply(.final(seg(id, "Rewritten."))) == .ignored)
-        #expect(store.apply(.volatile(seg(id, "late volatile"))) == .ignored)
+        let outcome6 = store.apply(.final(seg(id, "Rewritten.")))
+        #expect(outcome6 == .ignored)
+        let outcome7 = store.apply(.volatile(seg(id, "late volatile")))
+        #expect(outcome7 == .ignored)
 
         #expect(store.transcript.map(\.text) == ["First."])
         #expect(store.volatileSegments.isEmpty)
@@ -82,7 +89,8 @@ struct CaptionStoreTests {
     @Test("a final without a preceding volatile is appended")
     func finalWithoutVolatile() {
         var store = CaptionStore()
-        #expect(store.apply(.final(seg(SegmentID(), "Short."))) == .finalized)
+        let outcome8 = store.apply(.final(seg(SegmentID(), "Short.")))
+        #expect(outcome8 == .finalized)
         #expect(store.transcriptText == "Short.")
     }
 
@@ -142,8 +150,10 @@ struct CaptionStoreTests {
         store.apply(.final(seg(SegmentID(), "b", 2, 3)))
         #expect(!store.transcript.contains { $0.id == old })
 
-        #expect(store.apply(.final(seg(old, "old again"))) == .ignored)
-        #expect(store.apply(.volatile(seg(old, "old volatile"))) == .ignored)
+        let outcome9 = store.apply(.final(seg(old, "old again")))
+        #expect(outcome9 == .ignored)
+        let outcome10 = store.apply(.volatile(seg(old, "old volatile")))
+        #expect(outcome10 == .ignored)
         #expect(store.transcript.map(\.text) == ["a", "b"])
     }
 
@@ -165,9 +175,11 @@ struct CaptionStoreTests {
         var store = CaptionStore()
         let id = SegmentID()
         store.apply(.volatile(seg(id, "uh")))
-        #expect(store.apply(.volatile(seg(id, "   "))) == .volatileCleared)
+        let outcome11 = store.apply(.volatile(seg(id, "   ")))
+        #expect(outcome11 == .volatileCleared)
         #expect(store.snapshot.isEmpty)
-        #expect(store.apply(.volatile(seg(id, ""))) == .ignored)
+        let outcome12 = store.apply(.volatile(seg(id, "")))
+        #expect(outcome12 == .ignored)
     }
 
     @Test("an empty final removes the volatile line and adds nothing")
@@ -175,11 +187,13 @@ struct CaptionStoreTests {
         var store = CaptionStore()
         let id = SegmentID()
         store.apply(.volatile(seg(id, "mm")))
-        #expect(store.apply(.final(seg(id, ""))) == .volatileCleared)
+        let outcome13 = store.apply(.final(seg(id, "")))
+        #expect(outcome13 == .volatileCleared)
         #expect(store.transcript.isEmpty)
         #expect(store.snapshot.isEmpty)
         #expect(store.isFinal(id))
-        #expect(store.apply(.final(seg(SegmentID(), " "))) == .ignored)
+        let outcome14 = store.apply(.final(seg(SegmentID(), " ")))
+        #expect(outcome14 == .ignored)
     }
 
     @Test("text is trimmed")
@@ -235,8 +249,10 @@ struct CaptionStoreTests {
     func applySequence() {
         var store = CaptionStore()
         let id = SegmentID()
-        #expect(store.apply([TranscriptEvent.volatile(seg(id, "a")), .final(seg(id, "A."))]))
-        #expect(!store.apply([TranscriptEvent.final(seg(id, "A again."))]))
+        let outcome15 = store.apply([TranscriptEvent.volatile(seg(id, "a")), .final(seg(id, "A."))])
+        #expect(outcome15)
+        let outcome16 = store.apply([TranscriptEvent.final(seg(id, "A again."))])
+        #expect(!outcome16)
     }
 
     @Test("visibleFinalLines is capped at historyLimit")

@@ -7,8 +7,10 @@ struct AudioTimelineTests {
     @Test("the first chunk anchors the timeline at its start time")
     func firstChunkAnchors() {
         var timeline = AudioTimeline()
-        #expect(timeline.accept(chunkStart: 5, duration: 0.1))
-        #expect(timeline.place(frames: 1_600, sampleRate: 16_000) == 5)
+        let isNewRun1 = timeline.accept(chunkStart: 5, duration: 0.1)
+        #expect(isNewRun1)
+        let start1 = timeline.place(frames: 1_600, sampleRate: 16_000)
+        #expect(start1 == 5)
     }
 
     @Test("contiguous chunks advance by output frames, not by input times")
@@ -28,7 +30,8 @@ struct AudioTimelineTests {
     func jitterTolerated() {
         var timeline = AudioTimeline(tolerance: 0.02)
         _ = timeline.accept(chunkStart: 0, duration: 0.1)
-        #expect(!timeline.accept(chunkStart: 0.11, duration: 0.1))
+        let isNewRun2 = timeline.accept(chunkStart: 0.11, duration: 0.1)
+        #expect(!isNewRun2)
     }
 
     @Test("a gap re-anchors at the new chunk")
@@ -36,16 +39,21 @@ struct AudioTimelineTests {
         var timeline = AudioTimeline()
         _ = timeline.accept(chunkStart: 0, duration: 0.5)
         _ = timeline.place(frames: 8_000, sampleRate: 16_000)
-        #expect(timeline.accept(chunkStart: 3, duration: 0.5))
-        #expect(timeline.place(frames: 8_000, sampleRate: 16_000) == 3)
-        #expect(timeline.place(frames: 8_000, sampleRate: 16_000) == 3.5)
+        let isNewRun3 = timeline.accept(chunkStart: 3, duration: 0.5)
+        #expect(isNewRun3)
+        let start2 = timeline.place(frames: 8_000, sampleRate: 16_000)
+        #expect(start2 == 3)
+        let start3 = timeline.place(frames: 8_000, sampleRate: 16_000)
+        #expect(start3 == 3.5)
     }
 
     @Test("an overlap (time going backwards) also re-anchors")
     func overlapReanchors() {
         var timeline = AudioTimeline()
         _ = timeline.accept(chunkStart: 10, duration: 1)
-        #expect(timeline.accept(chunkStart: 2, duration: 1))
-        #expect(timeline.place(frames: 100, sampleRate: 100) == 2)
+        let isNewRun4 = timeline.accept(chunkStart: 2, duration: 1)
+        #expect(isNewRun4)
+        let start4 = timeline.place(frames: 100, sampleRate: 100)
+        #expect(start4 == 2)
     }
 }
