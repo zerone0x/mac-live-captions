@@ -80,9 +80,14 @@ Rules:
    renders state. Keep it small; it is only compiled in CI, not unit-tested.
 3. **Core imports Foundation only** (plus Observation/Synchronization if
    needed). No SwiftUI, AppKit, AVFoundation, ScreenCaptureKit or Speech.
-4. **No networking** in the packages or App. `make check-offline` fails the build if
-   `URLSession`, any `import Network` form, `NW*` types and similar appear;
-   `scripts/check-offline-selftest.sh` checks the check against fixtures in CI.
+4. **No networking** in the packages or App (DECISIONS 0003, 0012).
+   `make check-offline` fails the build if networking APIs (`URLSession`,
+   `import Network`/`WebKit`, `nw_*`, sockets, `SFSpeechRecognizer`, remote URL
+   literals, `Process` and similar) or remote package dependencies appear;
+   `make check-linked-frameworks` checks the built binary's linked frameworks
+   and imported symbols. `scripts/check-offline-selftest.sh` checks all three
+   against fixtures. The only sanctioned network use is the system's speech
+   model download through `AssetInventory`.
 5. **Swift 6 language mode**, complete strict concurrency. Cross-stage data is
    `Sendable`; UI-facing types are `@MainActor`.
 
@@ -106,6 +111,7 @@ Rules:
   arm64 app with hardened runtime.
 - `make package` also runs `scripts/verify-app.sh` (LSUIElement, usage strings,
   arm64, signature, entitlements) and zips the app.
-- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages) and `package` on a
+- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages), `package` and
+  `check-linked-frameworks` on a
   `macos-26` runner for every PR and push to `main`, and uploads the zip as a
   workflow artifact.

@@ -8,7 +8,7 @@ APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
 SHOTS    := build/screenshots
 
-.PHONY: all generate test test-core test-speech build package verify screenshots check-offline open clean
+.PHONY: all generate test test-core test-speech build package verify screenshots check-offline check-linked-frameworks open clean
 
 all: check-offline test build
 
@@ -54,9 +54,14 @@ screenshots:
 	rm -rf $(SHOTS)
 	$(APP)/Contents/MacOS/LiveCaptions --render-overlay-snapshots $(SHOTS)
 
-## Fail if networking APIs appear in the caption path (see docs/DECISIONS.md).
+## Fail if networking APIs or remote dependencies appear (docs/DECISIONS.md 0003, 0012).
 check-offline:
 	scripts/check-offline.sh
+	scripts/check-dependencies.sh
+
+## After `make build`: fail if the binary links or calls networking APIs.
+check-linked-frameworks:
+	scripts/check-linked-frameworks.sh $(APP)
 
 open: generate
 	open $(PROJECT)
