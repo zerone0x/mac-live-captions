@@ -199,3 +199,65 @@ window instead of the whole screen.
 
 **Consequences.** Settings copy and docs must keep the "best effort" wording.
 Re-test with Zoom, Meet and Teams after each major macOS update.
+
+## 0010: Speech adapter in its own local package
+
+2026-11-12 · #8
+
+**Context.** The `Transcriber` implementation needs the Speech, AVFoundation
+and CoreMedia frameworks, which Core must not import (ARCHITECTURE rule 3).
+ARCHITECTURE put platform adapters in the App target, but the App target has
+no tests, and #8 asks for a test that runs real audio through
+`SpeechAnalyzer`.
+
+**Decision.** The speech adapter lives in a second local package,
+`Packages/SpeechAdapter` (product and module `LiveCaptionsSpeech`), which
+depends on Core. It holds `SpeechAnalyzerTranscriber` (the `Transcriber`),
+`SystemSpeechAssets` (the `SpeechAssetProvider` over `AssetInventory`) and the
+audio converter, plus their tests. The app target links it (`project.yml`).
+Everything that does not need the Speech framework (segment IDs, the caption
+store, the audio timeline, asset states) stays in Core. `make test` runs both
+packages; `check-offline.sh` scans every package.
+
+**Consequences.** The speech code is compiled and tested with `swift test` on
+CI like Core. App stays glue: it only creates these types and wires them
+(#11). Other platform adapters (audio capture, overlay) can stay in App, or
+follow this pattern if they need tests.
+
+## 0011: Transcription session, segment IDs and caption store rules
+
+2026-11-12 · #8
+
+**Context.** `SpeechTranscriber` delivers each phrase as one or more volatile
+results and then a final one, in order, each with an audio time range; final
+results are never replaced. The overlay needs lines that update in place, and
+the transcript must stay stable. The en-US model is downloaded by the system
+and may be missing.
+
+**Decision.**
+
+- One locale, en-US. No language picker, no parallel recognizers.
+- Reporting options `volatileResults` and `fastResults` (latency over
+  accuracy, for live captions); no attribute options, since the result's
+  `range` gives the phrase's time range. Revisit `fastResults` after
+  real-world testing.
+- Audio is resampled with `AVAudioConverter` to
+  `SpeechAnalyzer.bestAvailableAudioFormat` (`AnalyzerInputConverter` needs
+  macOS 27). Each input carries an explicit start time from `AudioTimeline`,
+  so result ranges are session seconds; gaps re-anchor the timeline.
+- `SegmentTracker` (Core) gives the volatile results of the open phrase one
+  `SegmentID`; the final result that overlaps it keeps that ID and closes it.
+- `CaptionStore` (Core): volatile text is replaced in place, one volatile line
+  per origin; finals are appended and immutable (late events for a final ID
+  are ignored); history is bounded (`historyLimit`, default 500), and dropped
+  IDs are remembered for another `historyLimit` finals. The snapshot shows the
+  last `visibleFinalLines` (default 2) finals plus the volatile lines. Hiding
+  idle captions is left to the overlay and session waves (#9, #11).
+- Assets have explicit states (`SpeechAssetState`: checking, not installed,
+  downloading, ready, unsupported, failed). The transcriber never downloads:
+  it throws `TranscriptionError.assetsNotReady`, and the app calls
+  `SystemSpeechAssets.install`, an explicit download done by the system.
+
+**Consequences.** #11 wires `SystemSpeechAssets` into the menu states and
+feeds `SpeechAnalyzerTranscriber` events into a `CaptionStore`. Latency still
+needs measuring on a real Mac.

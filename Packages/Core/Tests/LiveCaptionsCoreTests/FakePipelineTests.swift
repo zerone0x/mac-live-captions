@@ -23,19 +23,19 @@ struct FakePipelineTests {
 
         let audio = try await source.start()
         var events: [TranscriptEvent] = []
+        var store = CaptionStore(configuration: .init(historyLimit: 10, visibleFinalLines: 2))
         for try await event in transcriber.transcribe(audio) {
             events.append(event)
-            // Stand-in for the CaptionStore (#8): show the latest segment only.
-            let segment = event.segment
-            presenter.present(CaptionSnapshot(lines: [
-                CaptionLine(id: segment.id, text: segment.text, origin: segment.origin, isFinal: event.isFinal),
-            ]))
+            if store.apply(event).changedState {
+                presenter.present(store.snapshot)
+            }
         }
 
         #expect(events.count == 6)
         #expect(events.filter(\.isFinal).map(\.segment.text) == ["hello", "live", "captions"])
-        #expect(presenter.snapshots.last?.lines.map(\.text) == ["captions"])
-        #expect(presenter.snapshots.last?.lines.first?.isFinal == true)
+        #expect(presenter.snapshots.last?.lines.map(\.text) == ["live", "captions"])
+        #expect(presenter.snapshots.last?.lines.allSatisfy(\.isFinal) == true)
+        #expect(store.transcriptText == "hello live captions")
 
         let finals = events.filter(\.isFinal).map(\.segment)
         #expect(finals.map(\.start) == [0, 0.1, 0.2])

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # The caption path must stay on device (docs/DECISIONS.md, 0003).
-# Fails if Core or App sources use networking APIs. If a future feature really
+# Fails if package or App sources use networking APIs. If a future feature really
 # needs the network, it gets its own module and a decision entry, not an
 # exception here.
 #
-# Usage: check-offline.sh [PATH...]   (default: Core and App sources)
+# Usage: check-offline.sh [PATH...]   (default: all package and App sources)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 if [[ $# -gt 0 ]]; then
   paths=("$@")
 else
-  paths=(Packages/Core/Sources App/Sources)
+  paths=(Packages/*/Sources App/Sources)
 fi
 
 # Portable ERE (works with BSD grep on macOS and GNU grep, no \b).

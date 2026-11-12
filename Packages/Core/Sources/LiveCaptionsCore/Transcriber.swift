@@ -54,8 +54,14 @@ public enum TranscriptEvent: Sendable, Hashable {
 
 /// Turns audio into transcript events, on device.
 ///
-/// The real implementation wraps Apple's `SpeechAnalyzer` + `SpeechTranscriber`
-/// (en-US) in the app target. It must not make network calls.
+/// The real implementation (`SpeechAnalyzerTranscriber` in the
+/// `LiveCaptionsSpeech` module of `Packages/SpeechAdapter`) wraps Apple's
+/// `SpeechAnalyzer` + `SpeechTranscriber` (en-US). It must not make network
+/// calls. Volatile and final events for one phrase share a `SegmentID`
+/// (see `SegmentTracker`); feed the events into a `CaptionStore`.
+///
+/// The stream throws `TranscriptionError` when the recogniser cannot start,
+/// for example `.assetsNotReady` before the speech model is installed.
 public protocol Transcriber: Sendable {
     func transcribe(
         _ audio: AsyncThrowingStream<AudioChunk, any Error>
