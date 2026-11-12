@@ -62,7 +62,8 @@ Rules:
 3. **Core imports Foundation only** (plus Observation/Synchronization if
    needed). No SwiftUI, AppKit, AVFoundation, ScreenCaptureKit or Speech.
 4. **No networking** in Core or App. `make check-offline` fails the build if
-   `URLSession`, `Network` and similar appear.
+   `URLSession`, any `import Network` form, `NW*` types and similar appear;
+   `scripts/check-offline-selftest.sh` checks the check against fixtures in CI.
 5. **Swift 6 language mode**, complete strict concurrency. Cross-stage data is
    `Sendable`; UI-facing types are `@MainActor`.
 
