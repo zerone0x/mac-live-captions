@@ -22,6 +22,22 @@ settings:
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: YES
     DEAD_CODE_STRIPPING: YES
+  configs:
+    # Release is what CI packages and the owner installs (docs/DECISIONS.md 0004).
+    Release:
+      # With CODE_SIGN_IDENTITY "-" Xcode signs "to run locally" and injects
+      # com.apple.security.get-task-allow, which lets any same-user process
+      # attach a debugger and read memory, and which notarization rejects.
+      # Debug keeps the default (YES) so local builds stay debuggable.
+      CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+      # Strip the shipped binary during `xcodebuild build` (not only on
+      # install/archive): no symbol table, no debug map with runner paths.
+      # Debug info goes to the dSYM next to the app instead.
+      DEPLOYMENT_POSTPROCESSING: YES
+      STRIP_INSTALLED_PRODUCT: YES
+      STRIP_STYLE: all
+      COPY_PHASE_STRIP: YES
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
 
 packages:
   Core:
