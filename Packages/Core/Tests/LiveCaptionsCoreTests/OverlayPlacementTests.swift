@@ -7,23 +7,23 @@ struct OverlayPlacementTests {
     /// 14-inch MacBook Pro at the default scaled resolution: 1512 x 982 points,
     /// 32-point menu bar, 204-point notch.
     static let builtIn = ScreenGeometry(
-        frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
-        visibleFrame: CGRect(x: 0, y: 70, width: 1512, height: 880),
+        frame: OverlayRect(x: 0, y: 0, width: 1512, height: 982),
+        visibleFrame: OverlayRect(x: 0, y: 70, width: 1512, height: 880),
         safeAreaTop: 32,
-        auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 654, height: 32),
-        auxiliaryTopRightArea: CGRect(x: 858, y: 950, width: 654, height: 32)
+        auxiliaryTopLeftArea: OverlayRect(x: 0, y: 950, width: 654, height: 32),
+        auxiliaryTopRightArea: OverlayRect(x: 858, y: 950, width: 654, height: 32)
     )
 
     /// External 2560 x 1440 display to the right of the built-in one.
     static let external = ScreenGeometry(
-        frame: CGRect(x: 1512, y: -200, width: 2560, height: 1440),
-        visibleFrame: CGRect(x: 1512, y: -200, width: 2560, height: 1415)
+        frame: OverlayRect(x: 1512, y: -200, width: 2560, height: 1440),
+        visibleFrame: OverlayRect(x: 1512, y: -200, width: 2560, height: 1415)
     )
 
     @Test("detects the notch from the auxiliary areas and safe-area inset")
     func notchDetection() throws {
         let notch = try #require(Self.builtIn.notch)
-        #expect(notch == CGRect(x: 654, y: 950, width: 204, height: 32))
+        #expect(notch == OverlayRect(x: 654, y: 950, width: 204, height: 32))
         #expect(Self.external.notch == nil)
 
         var oneSided = Self.builtIn
@@ -37,9 +37,9 @@ struct OverlayPlacementTests {
 
     @Test("hangs from the notch, centred on it, touching the top edge")
     func notchPlacement() {
-        let placement = OverlayPlacement.place(captionSize: CGSize(width: 440, height: 60), on: Self.builtIn)
+        let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: Self.builtIn)
         #expect(placement.style == .notch(notchWidth: 204, notchHeight: 32))
-        #expect(placement.frame == CGRect(x: 536, y: 890, width: 440, height: 92))
+        #expect(placement.frame == OverlayRect(x: 536, y: 890, width: 440, height: 92))
         #expect(placement.frame.midX == 756)
         #expect(placement.frame.maxY == 982)
         #expect(placement.style.topInset == 32)
@@ -47,14 +47,14 @@ struct OverlayPlacementTests {
 
     @Test("is never narrower than the notch plus its shoulders")
     func narrowCaptions() {
-        let placement = OverlayPlacement.place(captionSize: CGSize(width: 100, height: 60), on: Self.builtIn)
+        let placement = OverlayPlacement.place(captionWidth: 100, captionHeight: 60, on: Self.builtIn)
         #expect(placement.frame.width == 204 + 2 * OverlayPlacement.notchShoulder)
         #expect(placement.frame.midX == 756)
     }
 
     @Test("falls back to a top-centre pill below the menu bar without a notch")
     func pillPlacement() {
-        let placement = OverlayPlacement.place(captionSize: CGSize(width: 440, height: 60), on: Self.external)
+        let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: Self.external)
         #expect(placement.style == .pill)
         #expect(placement.style.topInset == 0)
         #expect(placement.frame.midX == Self.external.frame.midX)
@@ -66,17 +66,17 @@ struct OverlayPlacementTests {
     func pillWithoutMenuBar() {
         var fullScreen = Self.external
         fullScreen.visibleFrame = fullScreen.frame
-        let placement = OverlayPlacement.place(captionSize: CGSize(width: 440, height: 60), on: fullScreen)
+        let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: fullScreen)
         #expect(placement.frame.maxY == fullScreen.frame.maxY - OverlayPlacement.pillGap)
     }
 
     @Test("stays on screen when the captions are wider than the display")
     func clamped() {
         let small = ScreenGeometry(
-            frame: CGRect(x: 100, y: 0, width: 300, height: 200),
-            visibleFrame: CGRect(x: 100, y: 0, width: 300, height: 176)
+            frame: OverlayRect(x: 100, y: 0, width: 300, height: 200),
+            visibleFrame: OverlayRect(x: 100, y: 0, width: 300, height: 176)
         )
-        let placement = OverlayPlacement.place(captionSize: CGSize(width: 440, height: 60), on: small)
+        let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: small)
         #expect(placement.frame.minX == 100)
         #expect(placement.frame.width == 300)
     }

@@ -112,7 +112,7 @@ final class NotchOverlayController: CaptionPresenter {
 
     private func makePanelIfNeeded() -> OverlayPanel {
         if let panel { return panel }
-        let panel = OverlayPanel()
+        let panel = OverlayPanel.make()
         let hosting = NSHostingView(rootView: OverlayRootView(model: model))
         hosting.sizingOptions = []
         panel.contentView = hosting
@@ -135,21 +135,36 @@ final class NotchOverlayController: CaptionPresenter {
     private func reposition() {
         guard let panel, let screen = NSScreen.screens.first else { return }
         let geometry = ScreenGeometry(
-            frame: screen.frame,
-            visibleFrame: screen.visibleFrame,
-            safeAreaTop: screen.safeAreaInsets.top,
-            auxiliaryTopLeftArea: screen.auxiliaryTopLeftArea,
-            auxiliaryTopRightArea: screen.auxiliaryTopRightArea
+            frame: OverlayRect(screen.frame),
+            visibleFrame: OverlayRect(screen.visibleFrame),
+            safeAreaTop: Double(screen.safeAreaInsets.top),
+            auxiliaryTopLeftArea: screen.auxiliaryTopLeftArea.map { OverlayRect($0) },
+            auxiliaryTopRightArea: screen.auxiliaryTopRightArea.map { OverlayRect($0) }
         )
+        let caption = OverlayMetrics.captionSize(maxLines: composer.configuration.maxLines)
         let placement = OverlayPlacement.place(
-            captionSize: OverlayMetrics.captionSize(maxLines: composer.configuration.maxLines),
+            captionWidth: Double(caption.width),
+            captionHeight: Double(caption.height),
             on: geometry
         )
         if model.style != placement.style {
             model.style = placement.style
         }
-        if panel.frame != placement.frame {
-            panel.setFrame(placement.frame, display: true)
+        let frame = NSRect(placement.frame)
+        if panel.frame != frame {
+            panel.setFrame(frame, display: true)
         }
+    }
+}
+
+extension OverlayRect {
+    init(_ rect: NSRect) {
+        self.init(x: Double(rect.minX), y: Double(rect.minY), width: Double(rect.width), height: Double(rect.height))
+    }
+}
+
+extension NSRect {
+    init(_ rect: OverlayRect) {
+        self.init(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
     }
 }

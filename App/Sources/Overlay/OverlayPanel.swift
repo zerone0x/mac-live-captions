@@ -13,13 +13,18 @@ import AppKit
 ///
 /// See docs/DECISIONS.md, 0005.
 final class OverlayPanel: NSPanel {
-    convenience init() {
-        self.init(
+    static func make() -> OverlayPanel {
+        let panel = OverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
         )
+        panel.configure()
+        return panel
+    }
+
+    private func configure() {
         isFloatingPanel = true
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
