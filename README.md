@@ -5,7 +5,10 @@ Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
 are fast and nothing leaves your Mac.
 
 Status: early scaffold. The menu-bar app runs, but Start/Stop are
-placeholders until audio capture and transcription land (see #13).
+placeholders until transcription lands and the pipeline is wired (see #13).
+System audio capture works on its own: use **Debug: Audio Capture** in the
+menu to see a live level meter. It needs the Screen & System Audio Recording
+permission; after granting it, quit and reopen LiveCaptions.
 
 Requirements: Apple Silicon Mac, macOS 26 or later.
 
@@ -32,8 +35,8 @@ Every PR and every push to `main` builds the app on GitHub Actions.
    ```
 
 4. The app has no Dock icon. Look for the captions icon in the menu bar.
-5. To see the caption overlay without audio, choose **Demo Captions** in the
-   menu. It plays a short scripted English feed at the notch (or in a pill
+5. To see the caption overlay without audio, choose **Debug: Demo Captions** in
+   the menu. It plays a short scripted English feed at the notch (or in a pill
    under the menu bar on displays without a notch).
 
 Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the

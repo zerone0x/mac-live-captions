@@ -71,7 +71,69 @@ cleared with `xattr` (see README). Because each ad-hoc build has a new code
 signature, macOS may ask for permissions again after every update. Real
 signing and notarization come with release packaging (#12).
 
-## 0005: Caption overlay is a click-through panel at the notch of the menu-bar screen
+## 0005: System audio is captured with ScreenCaptureKit
+
+2026-11-12 · #7
+
+**Context.** macOS has two official ways to capture what other apps play
+without a virtual audio device: ScreenCaptureKit audio
+(`SCStreamConfiguration.capturesAudio`) and Core Audio process taps
+(`AudioHardwareCreateProcessTap`, macOS 14.2+). The research
+([technical-feasibility.md](research/technical-feasibility.md) §1–2) found
+that a denied ScreenCaptureKit permission is a clear error (`userDeclined`)
+and `CGPreflightScreenCaptureAccess()` can check it, while a denied tap has no
+query API and silently delivers zeros. Audicap reports crackling playback with
+taps on macOS 26.4, and no lost words with ScreenCaptureKit across output
+device changes. The cost of ScreenCaptureKit is the heavier "Screen & System
+Audio Recording" permission, the purple capture indicator, a relaunch after
+the grant, and periodic re-confirmation.
+
+**Decision.** `SystemAudioSource` (App target) captures with ScreenCaptureKit,
+adapted from Audicap's `SCKCapture` (MIT, notice in
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)): a display filter with
+only an audio output, `excludesCurrentProcessAudio`, 16 kHz mono requested,
+and the buffer's real stream description used to read samples. A denied
+permission is reported as `permissionDenied(.system)` and never retried
+(retrying only re-prompts, and the grant needs a relaunch). Other stream stops
+reconnect with exponential backoff (2–30 s, 6 attempts). After a default output
+device change the stream is rebuilt only if no buffers arrive for 4 s. The
+optional microphone source uses `AVAudioEngine` bound to the built-in
+microphone, so Bluetooth headphones are not switched to the HFP call profile.
+
+**Consequences.** Users grant Screen & System Audio Recording and relaunch
+once; the error text says so. The purple indicator shows while capturing. A
+process tap remains a possible later replacement if it works without
+crackling on macOS 26.x; it would sit behind the same `AudioSource` protocol.
+
+## 0006: Audio capture contract: 16 kHz mono chunks, explicit status
+
+2026-11-12 · #7
+
+**Context.** The transcriber (#8) and the pipeline wiring (#11) are built in
+parallel with capture. Core must stay Foundation-only, and capture problems
+(permission, nothing playing, interruptions) must be explicit states.
+
+**Decision.** The `AudioSource` protocol is unchanged. Sources convert every
+buffer to mono Float32 at 16 kHz (`CaptureFormat.sampleRate`) with
+`AVAudioConverter` (downmix on) and emit contiguous 100 ms `AudioChunk`s whose
+`startTime` counts captured frames (`AudioChunkAssembler`). The chunk stream
+is bounded (the newest 60 s are kept) so the capture callback never blocks.
+Capture health is a separate Core state machine, `AudioCaptureStatus` (idle,
+starting, capturing, noAudio, reconnecting, permissionDenied, failed),
+reported through an `onStatus` callback on the concrete sources. It does not
+change `SessionPhase`; #11 maps one to the other. "No audio" means 5 s of
+samples at or below -80 dBFS (`SilenceMonitor`). Fatal problems also end the
+chunk stream with an `AudioCaptureError`. Pure parts live in Core
+(`AudioCaptureStatus.swift`, `AudioProcessing.swift`); everything that touches
+AVFoundation, Core Audio or ScreenCaptureKit lives in `App/Sources/Audio/`.
+
+**Consequences.** Transcriber adapters receive 16 kHz mono Float32 and only
+convert the sample type if the recogniser wants something else. Chunk times
+do not include gaps while reconnecting. Until #11 wires the pipeline, a
+"Debug: Audio Capture" submenu runs a source on its own and shows the level
+and captured seconds.
+
+## 0007: Caption overlay is a click-through panel at the notch of the menu-bar screen
 
 2026-11-12 · #9
 
@@ -97,7 +159,7 @@ Keynote and Zoom on macOS 26 is not verified in CI; it is on the owner's manual
 checklist. A captions window that needs clicks (a transcript panel) will be a
 separate window. A screen choice setting can come later (#11).
 
-## 0006: Caption layout: two lines, 42 characters, finalized text is append-only
+## 0008: Caption layout: two lines, 42 characters, finalized text is append-only
 
 2026-11-12 · #9
 
@@ -121,7 +183,7 @@ characters shrink slightly (`minimumScaleFactor`) instead of wrapping.
 Throttling volatile updates (200–300 ms) is not done yet; add it if the real
 recogniser updates faster than is comfortable to read.
 
-## 0007: "Hide from screen sharing" is best effort only
+## 0009: "Hide from screen sharing" is best effort only
 
 2026-11-12 · #9
 

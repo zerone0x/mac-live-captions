@@ -20,12 +20,12 @@ struct MenuContent: View {
 
         Divider()
 
+        CaptureDebugMenu(probe: model.captureProbe)
+
         Toggle("Hide Overlay from Screen Sharing (Best Effort)", isOn: $model.hideOverlayFromScreenSharing)
 
-        Section("Debug") {
-            Button(model.isDemoPlaying ? "Stop Demo Captions" : "Demo Captions") { model.toggleDemo() }
-                .keyboardShortcut("d")
-        }
+        Button(model.isDemoPlaying ? "Debug: Stop Demo Captions" : "Debug: Demo Captions") { model.toggleDemo() }
+            .keyboardShortcut("d")
 
         Divider()
 

@@ -39,7 +39,7 @@ public struct CaptionFrame: Sendable, Hashable {
 /// Turns caption snapshots into overlay frames and decides when the overlay
 /// collapses.
 ///
-/// Layout rules (docs/DECISIONS.md, 0006):
+/// Layout rules (docs/DECISIONS.md, 0008):
 /// - At most `maxLines` lines of at most `maxLineLength` characters, left
 ///   aligned, wrapped greedily at word boundaries.
 /// - Finalized text is append-only: once laid out, it never changes, rewraps

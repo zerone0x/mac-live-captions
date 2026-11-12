@@ -11,7 +11,7 @@ import AppKit
 /// - Level `.mainMenu + 3` (as boring.notch) so it can draw over the menu bar
 ///   around the notch.
 ///
-/// See docs/DECISIONS.md, 0005.
+/// See docs/DECISIONS.md, 0007.
 final class OverlayPanel: NSPanel {
     static func make() -> OverlayPanel {
         let panel = OverlayPanel(

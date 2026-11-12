@@ -11,6 +11,9 @@ import Observation
 final class AppModel {
     private(set) var phase: SessionPhase = .idle
 
+    /// Debug-only audio capture check (#7), independent of `phase`.
+    let captureProbe = AudioCaptureProbe()
+
     /// The notch overlay. Real captions reach it through `CaptionPresenter`
     /// once the pipeline is wired (#11); until then only the demo feeds it.
     let overlay = NotchOverlayController()
