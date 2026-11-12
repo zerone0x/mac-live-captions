@@ -7,7 +7,7 @@
 #    CFNetwork, WebKit and the Swift Network overlay are never allowed.
 # 2. No undefined symbol from `nm -u` may name a networking API (sockets,
 #    resolver, nw_*, CFNetwork streams, NSURLSession/NSURLConnection,
-#    SFSpeechRecognizer).
+#    SFSpeechRecognizer, and dlsym, which would reach any of them by name).
 #
 # Speech is allowed: the app uses SpeechAnalyzer/SpeechTranscriber, and the
 # en-US model download through AssetInventory is the one sanctioned,
@@ -58,7 +58,7 @@ allowed_dylibs=(
 denied_libs='/(Network|CFNetwork|WebKit|NetworkExtension|MultipeerConnectivity|CloudKit)\.framework/|libswift(Network|CFNetwork|WebKit|FoundationNetworking)\.dylib'
 
 # Undefined symbols that mean the binary calls a networking API itself.
-denied_symbols='^_(socket|connect|getaddrinfo|gethostbyname2?|getnameinfo|res_query|nw_[a-z_]+|CFSocket[A-Za-z]*|CFStreamCreatePair[A-Za-z]*|CF(Read|Write)StreamCreateWithFTPURL|CFHTTP[A-Za-z]*|CFNetwork[A-Za-z]*|CFHost[A-Za-z]*)$|NSURLSession|NSURLConnection|NSURLDownload|SFSpeechRecognizer|SFSpeechURLRecognitionRequest|10Foundation10URLSession'
+denied_symbols='^_(socket|connect|dlsym|getaddrinfo|gethostbyname2?|getnameinfo|res_query|nw_[a-z_]+|CFSocket[A-Za-z]*|CFStreamCreatePair[A-Za-z]*|CF(Read|Write)StreamCreateWithFTPURL|CFHTTP[A-Za-z]*|CFNetwork[A-Za-z]*|CFHost[A-Za-z]*)$|NSURLSession|NSURLConnection|NSURLDownload|SFSpeechRecognizer|SFSpeechURLRecognitionRequest|10Foundation10URLSession'
 
 libs_file=""
 symbols_file=""

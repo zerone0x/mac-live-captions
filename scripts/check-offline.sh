@@ -15,7 +15,12 @@
 # Remote package dependencies are checked by scripts/check-dependencies.sh, and
 # the frameworks the built binary links by scripts/check-linked-frameworks.sh.
 #
+# Deliberate evasion (a URL or API name built by concatenation or string
+# interpolation) is out of reach of a grep; reviews still matter.
+#
 # Usage: check-offline.sh [PATH...]   (default: all package and App sources)
+# Exit: 0 clean, 1 networking API found, 2 internal error (bad path, unreadable
+# file); an error never counts as OK.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -51,9 +56,9 @@ rules=(
   # SFSpeechRecognizer can fall back to Apple's servers; the app uses
   # SpeechAnalyzer/SpeechTranscriber only (DECISIONS 0003).
   "${nonword}SFSpeech"
-  # Remote URL string literals (also catches Data(contentsOf: URL(string: "https://...")).
+  # Remote URL string literals, any case (also catches Data(contentsOf: URL(string: "https://...")).
   # Other schemes such as x-apple.systempreferences: and file: stay allowed.
-  '"(https?|wss?|ftp)://'
+  '"([Hh][Tt][Tt][Pp][Ss]?|[Ww][Ss][Ss]?|[Ff][Tt][Pp])://'
   # BSD sockets and resolver.
   "${nonword}(socket|getaddrinfo|gethostbyname2?|getnameinfo|res_query)[[:space:]]*\\("
   "${nonword}(AF_INET6?|SOCK_STREAM|SOCK_DGRAM|sockaddr_in6?)${wordend}"
@@ -65,8 +70,20 @@ rules=(
 
 pattern="$(IFS='|'; echo "${rules[*]}")"
 
-hits="$(grep -RHInE "$pattern" --include='*.swift' "${paths[@]}" \
-  | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//' || true)"
+error() { echo "check-offline: error: $*" >&2; exit 2; }
+
+# grep exits 1 for "no match" and 2 for an error (unreadable file, bad
+# pattern); only 0 and 1 are results.
+rc=0
+matches="$(grep -RHInE "$pattern" --include='*.swift' "${paths[@]}")" || rc=$?
+[[ $rc -le 1 ]] || error "grep failed (exit $rc); the scan is incomplete"
+
+hits=""
+if [[ -n "$matches" ]]; then
+  rc=0
+  hits="$(printf '%s\n' "$matches" | grep -vE '^[^:]*:[0-9]+:[[:space:]]*//')" || rc=$?
+  [[ $rc -le 1 ]] || error "comment filter failed (exit $rc)"
+fi
 
 if [[ -n "$hits" ]]; then
   echo "$hits"

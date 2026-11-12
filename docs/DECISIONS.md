@@ -281,20 +281,21 @@ binary were not checked at all.
   app uses `SpeechAnalyzer`/`SpeechTranscriber`), `NSURLConnection`, `nw_*`,
   CFNetwork/CFSocket/CFStream/CFHTTP/CFHost, `NetService`, imports of WebKit,
   CFNetwork, MultipeerConnectivity, CloudKit and NetworkExtension, `http`,
-  `https`, `ws`, `wss` and `ftp` URL string literals, sockets and the
+  `https`, `ws`, `wss` and `ftp` URL string literals (any case), sockets and the
   resolver, `Process`/`NSTask`/`posix_spawn`/`NSAppleScript`, and `dlopen`.
   Whole-line `//` comments are ignored. Other URL schemes
   (`x-apple.systempreferences:`, `file:`) stay allowed.
 - `scripts/check-dependencies.sh`: no `url:`/`id:` package or binary target
-  in any `Package.swift`, no pins in a `Package.resolved`, no `url:`/`github:`
+  in any `Package.swift` or `Package@swift-*.swift`, no pins in a
+  `Package.resolved`, no `url:`/`github:` (bare or quoted)
   package in `project.yml`, no CocoaPods or Carthage. The remote allow-list in
   the script is empty.
 - `scripts/check-linked-frameworks.sh` (after the build, macOS): every library
   in `otool -L` must be on an allow-list of system frameworks and
   `libSystem`/`libobjc`/`libswift*`; Network, CFNetwork, WebKit and the Swift
   Network overlay are always rejected; `nm -u` must not show sockets, the
-  resolver, `nw_*`, CFNetwork streams, `NSURLSession`/`NSURLConnection` or
-  `SFSpeechRecognizer`.
+  resolver, `nw_*`, CFNetwork streams, `NSURLSession`/`NSURLConnection`,
+  `SFSpeechRecognizer` or `dlsym`.
 
 The one sanctioned network use is the en-US speech model download through
 `AssetInventory` (Speech framework). The system performs it, the app never
@@ -308,4 +309,10 @@ system framework means adding it to the allow-list in the same PR, with a
 reason in the PR. Test targets are not scanned (the real-audio test runs
 `say` through `Process`). Indirect traffic inside allowed system frameworks
 (for example AVFoundation loading a remote URL passed as a variable) is out
-of reach of these checks; reviews still matter.
+of reach of these checks; reviews still matter. So is deliberate evasion in
+source, such as a URL or API name built by concatenation or interpolation.
+
+Each check exits 1 for a finding and 2 for an internal error (missing path,
+unreadable file or directory, failing `grep`/`find`), so a broken scan never
+reports OK. The self-test requires exit 1 for every bad fixture and exit 2 for
+unreadable inputs.
