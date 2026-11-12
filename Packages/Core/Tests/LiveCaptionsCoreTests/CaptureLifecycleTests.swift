@@ -165,10 +165,27 @@ struct CaptureLifecycleTests {
         // The new run opens before the old stop() got to report.
         reporter.begin(new)
         reporter.end(old, with: .stopped)
-        reporter.send(.silenceDetected, for: old)
         reporter.send(.started, for: new)
+        // Late events from the old run's sample queue and reconnect task.
+        reporter.send(.silenceDetected, for: old)
+        reporter.send(.interrupted(attempt: 1), for: old)
         #expect(recorder.statuses == [.starting, .capturing, .starting, .capturing])
         #expect(reporter.status == .capturing)
+    }
+
+    @Test("after a run failed, a late stop of the same run does not hide the error")
+    func reporterKeepsTerminalError() throws {
+        var generations = CaptureGenerations()
+        let recorder = StatusRecorder()
+        let reporter = CaptureStatusReporter(deliver: recorder.record)
+        let run = try begun(&generations)
+        reporter.begin(run)
+        reporter.send(.started, for: run)
+        reporter.end(run, with: .failed("gave up reconnecting"))
+        reporter.end(run, with: .stopped)
+        reporter.send(.interrupted(attempt: 1), for: run)
+        #expect(reporter.status == .failed(message: "gave up reconnecting"))
+        #expect(recorder.statuses == [.starting, .capturing, .failed(message: "gave up reconnecting")])
     }
 
     @Test("a new run starts from 'starting' even if the old one never reported its end")

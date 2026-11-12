@@ -125,13 +125,22 @@ struct MonoPCMConverterTests {
         let samples = try convertOneSecond(converter, rate: rate, channels: 2) { _, frame in
             sine(frame, rate: rate)
         }
-        let next = try convertOneSecond(converter, rate: rate, channels: 2, second: 1) { _, frame in
-            sine(frame, rate: rate)
+        var total = samples.count
+        var perSecond = [samples.count]
+        for second in 1..<10 {
+            let next = try convertOneSecond(converter, rate: rate, channels: 2, second: second) { _, frame in
+                sine(frame, rate: rate)
+            }
+            total += next.count
+            perSecond.append(next.count)
         }
         #expect(isAboutOneSecond(samples.count), "got \(samples.count) samples for the first second")
-        // Once primed, the latency is constant: one second in, one second out.
-        // A converter rebuilt per buffer would lose the latency every 100 ms.
-        #expect(abs(next.count - 16_000) <= 16, "got \(next.count) samples for the second second")
+        // The resampler's latency stays bounded: after 100 buffers the output
+        // is still short by no more than 30 ms. Losing even a few frames per
+        // buffer (a converter rebuilt or drained wrongly per call) adds up
+        // past that.
+        let shortfall = 10 * 16_000 - total
+        #expect((-16...480).contains(shortfall), "short by \(shortfall) frames after 10 s; per second: \(perSecond)")
         #expect(peak(samples) > 0.3)
         #expect(peak(samples) <= 1.01, "mixing identical channels must not clip")
     }
