@@ -110,8 +110,8 @@ enum RealAudio {
         }
 
         let supported = await SpeechTranscriber.supportedLocales
-        let installed = await SpeechTranscriber.installedLocales
-        log("SpeechTranscriber.isAvailable = \(SpeechTranscriber.isAvailable); supported locales: \(supported.count); installed locales: \(installed.count)")
+        let installedLocales = await SpeechTranscriber.installedLocales
+        log("SpeechTranscriber.isAvailable = \(SpeechTranscriber.isAvailable); supported locales: \(supported.count); installed locales: \(installedLocales.count)")
         let assets = SystemSpeechAssets()
         var state = await assets.currentState()
         log("en-US speech model state before the test: \(state.statusText)")
