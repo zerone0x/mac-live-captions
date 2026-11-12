@@ -15,12 +15,12 @@ status=0
 cat >"$work/main.c" <<'EOF'
 int main(void) { return 0; }
 EOF
-clang -arch arm64 -mmacosx-version-min=26.0 -O0 -o "$work/stripped" "$work/main.c" || exit 1
-strip "$work/stripped" || exit 1
+clang -arch arm64 -mmacosx-version-min=26.0 -O0 -o "$work/bin-stripped" "$work/main.c" || exit 1
+strip "$work/bin-stripped" || exit 1
 # Unstripped: compiled with -g and linked from the .o, so the binary keeps a
 # debug map (N_OSO) with the object file's absolute path, as Xcode's was.
 clang -arch arm64 -mmacosx-version-min=26.0 -g -c -o "$work/main.o" "$work/main.c" || exit 1
-clang -arch arm64 -mmacosx-version-min=26.0 -o "$work/unstripped" "$work/main.o" || exit 1
+clang -arch arm64 -mmacosx-version-min=26.0 -o "$work/bin-unstripped" "$work/main.o" || exit 1
 
 entitlements() { # name, then key=bool pairs
   local file="$work/$1.entitlements"
@@ -88,16 +88,16 @@ gta_ent="$(entitlements gta "$audio" 'com.apple.security.get-task-allow=true')"
 extra_ent="$(entitlements extra "$audio" 'com.apple.security.cs.disable-library-validation=true')"
 none_ent="$(entitlements none 'com.apple.security.cs.allow-jit=false')"
 
-expect_pass good "$(make_app good "$work/stripped" "$good_ent" '--options runtime')"
-expect_fail get-task-allow "$(make_app gta "$work/stripped" "$gta_ent" '--options runtime')" \
+expect_pass good "$(make_app good "$work/bin-stripped" "$good_ent" '--options runtime')"
+expect_fail get-task-allow "$(make_app gta "$work/bin-stripped" "$gta_ent" '--options runtime')" \
   "get-task-allow"
-expect_fail extra-entitlement "$(make_app extra "$work/stripped" "$extra_ent" '--options runtime')" \
+expect_fail extra-entitlement "$(make_app extra "$work/bin-stripped" "$extra_ent" '--options runtime')" \
   "unexpected entitlements"
-expect_fail missing-audio-input "$(make_app none "$work/stripped" "$none_ent" '--options runtime')" \
+expect_fail missing-audio-input "$(make_app none "$work/bin-stripped" "$none_ent" '--options runtime')" \
   "unexpected entitlements"
-expect_fail no-hardened-runtime "$(make_app noruntime "$work/stripped" "$good_ent" '')" \
+expect_fail no-hardened-runtime "$(make_app noruntime "$work/bin-stripped" "$good_ent" '')" \
   "hardened runtime"
-expect_fail unstripped "$(make_app unstripped "$work/unstripped" "$good_ent" '--options runtime')" \
+expect_fail unstripped "$(make_app unstripped "$work/bin-unstripped" "$good_ent" '--options runtime')" \
   "not stripped"
 
 [[ $status -eq 0 ]] && echo "verify-app selftest: OK"
