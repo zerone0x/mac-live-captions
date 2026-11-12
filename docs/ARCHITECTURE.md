@@ -23,7 +23,7 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 | Speech model | `protocol SpeechAssetProvider`, `SpeechAssetState` | `SystemSpeechAssets` (`AssetInventory`) | SpeechAdapter package, Core | #8 |
 | CaptionStore | `struct CaptionStore`, pure logic | n/a (no platform code) | Core | #8 |
 | Overlay | `protocol CaptionPresenter` (`@MainActor`); `CaptionComposer` (layout, idle collapse), `OverlayPlacement` (notch maths) | `NotchOverlayController` + `OverlayPanel` (click-through `NSPanel`) | Core (logic), App (window) | #9 |
-| Session / menu bar | `SessionPhase` state machine | `MenuBarExtra` | Core + App | #6, #11 |
+| Session / menu bar | `SessionPhase` state machine with `SessionEffect`s, `SessionStatus` (menu line and icon), `CaptionPipeline` (runs one session), `CaptionUpdateThrottle`, `CaptionSettings` | `AppModel` (effects), `MenuBarExtra`, Settings and welcome windows, `GlobalHotKey` (⌃⌥C) | Core + App | #6, #11 |
 
 Value types shared by the stages (all `Sendable`, all in Core):
 
@@ -49,6 +49,28 @@ its `SegmentID`; a final result keeps that ID and is then immutable; the
 transcript keeps the newest `historyLimit` segments; the snapshot is the last
 `visibleFinalLines` finals plus the volatile lines.
 
+## Session
+
+`AppModel` sends `SessionEvent`s to `SessionPhase` and performs the
+`SessionEffect`s it returns (DECISIONS 0012):
+
+```
+idle ──Start──▶ checkingModel ──ready──▶ startingCapture ──capturing──▶ listening(hearing | noAudio | reconnecting)
+                    │                         │                              │
+                    └─not ready─▶ waitingForModel ──ready──▶ (startingCapture) │ Stop
+                                                                              ▼
+ permissionDenied / failed ◀── capture or pipeline error            stopping ──pipeline ended──▶ idle
+```
+
+- Start: stop the demo and the capture test, check the model (no download).
+- `startPipeline`: a `SystemAudioSource` reports its `AudioCaptureStatus`
+  as `captureStatusChanged`; a `CaptionPipeline` runs
+  source → `SpeechAnalyzerTranscriber` → `CaptionStore` → throttle →
+  `NotchOverlayController`, and its end is `pipelineEnded`.
+- The menu shows `SessionStatus(phase:model:captureTest:)`. The model is
+  downloaded only on an explicit click (welcome window or menu).
+- System audio only; the microphone stays in the debug capture test.
+
 Contracts are a starting point. The wave that first implements a stage may
 reshape its protocol; record the change in DECISIONS.md.
 
@@ -56,8 +78,10 @@ reshape its protocol; record the change in DECISIONS.md.
 
 ```
 App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit)
-  Sources/                @main app, menu, adapters that conform to Core protocols
+  Sources/                @main app, menu, settings and welcome windows, AppModel
+                          (session effects), global shortcut
     Audio/                system audio + microphone sources, debug capture menu
+    Overlay/              notch overlay panel, view, CI screenshot renderer
   Info.plist              LSUIElement, usage strings
   LiveCaptions.entitlements
 Packages/Core/            local Swift package "Core", product LiveCaptionsCore
@@ -83,6 +107,8 @@ Rules:
 4. **No networking** in the packages or App. `make check-offline` fails the build if
    `URLSession`, any `import Network` form, `NW*` types and similar appear;
    `scripts/check-offline-selftest.sh` checks the check against fixtures in CI.
+   The only network use is the en-US speech model download, done by macOS
+   (`AssetInventory`) when the user clicks "Download English Speech Model".
 5. **Swift 6 language mode**, complete strict concurrency. Cross-stage data is
    `Sendable`; UI-facing types are `@MainActor`.
 
@@ -98,7 +124,8 @@ Rules:
   through `SpeechAnalyzer` and checks the final captions. It installs the en-US
   model if it can and otherwise skips, printing a `[real-audio]` reason.
 - Things CI cannot check (real audio, permission prompts, the notch, focus
-  behaviour) go into the PR description as a manual checklist for the owner.
+  behaviour) go into the PR description as a manual checklist for the owner;
+  the standing checklist is [TESTING.md](TESTING.md).
 
 ## Build and CI
 

@@ -131,3 +131,75 @@ final class UpdateLog: @unchecked Sendable {
         lock.withLock { storage }
     }
 }
+
+/// Fails to start, like a source without the capture permission.
+struct FailingAudioSource: AudioSource {
+    let origin: AudioOrigin = .system
+    let error: AudioCaptureError
+
+    func start() async throws -> AsyncThrowingStream<AudioChunk, any Error> {
+        throw error
+    }
+
+    func stop() async {}
+}
+
+/// Yields the chunks it is given until `stop()`, like a live capture source.
+final class LiveFakeAudioSource: AudioSource, @unchecked Sendable {
+    let origin: AudioOrigin = .system
+    private let lock = NSLock()
+    private var continuation: AsyncThrowingStream<AudioChunk, any Error>.Continuation?
+    private var stopCount = 0
+
+    func start() async throws -> AsyncThrowingStream<AudioChunk, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<AudioChunk, any Error>.makeStream()
+        lock.withLock { self.continuation = continuation }
+        return stream
+    }
+
+    func yield(_ chunk: AudioChunk) {
+        _ = lock.withLock { continuation }?.yield(chunk)
+    }
+
+    func fail(_ error: any Error) {
+        lock.withLock { continuation }?.finish(throwing: error)
+    }
+
+    func stop() async {
+        let continuation = lock.withLock { () -> AsyncThrowingStream<AudioChunk, any Error>.Continuation? in
+            stopCount += 1
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.finish()
+    }
+
+    var stops: Int { lock.withLock { stopCount } }
+
+    var isStarted: Bool { lock.withLock { continuation != nil } }
+}
+
+/// Throws `error` as soon as audio arrives, like a transcriber without its model.
+struct FailingTranscriber: Transcriber {
+    let error: TranscriptionError
+
+    func transcribe(
+        _ audio: AsyncThrowingStream<AudioChunk, any Error>
+    ) -> AsyncThrowingStream<TranscriptEvent, any Error> {
+        let error = self.error
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await _ in audio {
+                        continuation.finish(throwing: error)
+                        return
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}

@@ -116,16 +116,15 @@ public struct CaptionComposer: Sendable {
 
         let width = configuration.maxLineLength
         var newlyFinal: [String] = []
-        var volatile: [String] = []
-        for line in snapshot.lines where !committedIDs.contains(line.id) {
-            let words = CaptionLineBreaker.pieces(of: line.text, maxLineLength: width)
-            if line.isFinal {
-                committedIDs.insert(line.id)
-                newlyFinal += words
-            } else {
-                volatile += words
-            }
+        for line in snapshot.lines where line.isFinal && !committedIDs.contains(line.id) {
+            committedIDs.insert(line.id)
+            newlyFinal += CaptionLineBreaker.pieces(of: line.text, maxLineLength: width)
         }
+        // One volatile line at most: the newest one. Volatile lines of two
+        // origins (system audio and microphone) are never joined, so their
+        // words cannot interleave (docs/DECISIONS.md, 0012).
+        let volatileLine = snapshot.lines.last { !$0.isFinal && !committedIDs.contains($0.id) }
+        let volatile = volatileLine.map { CaptionLineBreaker.pieces(of: $0.text, maxLineLength: width) } ?? []
         // Keep the ID set bounded: segments the store no longer reports are done.
         committedIDs.formIntersection(snapshot.lines.map(\.id))
 

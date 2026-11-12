@@ -80,4 +80,33 @@ struct OverlayPlacementTests {
         #expect(placement.frame.minX == 100)
         #expect(placement.frame.width == 300)
     }
+
+    @Test("bottom position: a centred pill above the Dock, notch or not")
+    func bottomPlacement() {
+        for screen in [Self.builtIn, Self.external] {
+            let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: screen, position: .bottom)
+            #expect(placement.style == .pill)
+            #expect(placement.frame.midX == screen.frame.midX)
+            #expect(placement.frame.minY == screen.visibleFrame.minY + OverlayPlacement.bottomGap)
+            #expect(placement.frame.height == 60)
+        }
+    }
+
+    @Test("bottom position stays on a screen too short for the gap")
+    func bottomClamped() {
+        let tiny = ScreenGeometry(
+            frame: OverlayRect(x: 0, y: 0, width: 300, height: 80),
+            visibleFrame: OverlayRect(x: 0, y: 0, width: 300, height: 80)
+        )
+        let placement = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: tiny, position: .bottom)
+        #expect(placement.frame.maxY == 80)
+        #expect(placement.frame.width == 300)
+    }
+
+    @Test("top position is the default")
+    func topIsDefault() {
+        let explicit = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: Self.builtIn, position: .top)
+        let implicit = OverlayPlacement.place(captionWidth: 440, captionHeight: 60, on: Self.builtIn)
+        #expect(explicit == implicit)
+    }
 }

@@ -99,6 +99,9 @@ public struct OverlayPlacement: Sendable, Hashable {
     public static let notchShoulder: Double = 24
     /// Gap between the menu bar and the pill.
     public static let pillGap: Double = 8
+    /// Gap between the bottom of the visible frame (the Dock, or the screen
+    /// edge) and the pill in the bottom position.
+    public static let bottomGap: Double = 48
 
     /// Places a caption block of `captionWidth` x `captionHeight` points on
     /// `screen`.
@@ -107,8 +110,26 @@ public struct OverlayPlacement: Sendable, Hashable {
     /// and reserves the notch height above the captions. Without one, it is a
     /// pill centred horizontally just below the menu bar (or the top edge when
     /// the menu bar is hidden, as in full-screen apps).
-    public static func place(captionWidth: Double, captionHeight: Double, on screen: ScreenGeometry) -> OverlayPlacement {
+    ///
+    /// With `position` `.bottom`, it is a pill centred horizontally
+    /// `bottomGap` points above the bottom of the visible frame, notch or not.
+    public static func place(
+        captionWidth: Double,
+        captionHeight: Double,
+        on screen: ScreenGeometry,
+        position: OverlayPosition = .top
+    ) -> OverlayPlacement {
         let bounds = screen.frame
+        if position == .bottom {
+            let width = min(captionWidth, bounds.width)
+            let x = clamp(bounds.midX - width / 2, bounds.minX, bounds.maxX - width)
+            let bottom = max(screen.visibleFrame.minY, bounds.minY) + bottomGap
+            let y = clamp(bottom, bounds.minY, bounds.maxY - captionHeight)
+            return OverlayPlacement(
+                style: .pill,
+                frame: OverlayRect(x: x, y: y, width: width, height: captionHeight)
+            )
+        }
         if let notch = screen.notch {
             let width = min(max(captionWidth, notch.width + 2 * notchShoulder), bounds.width)
             let height = notch.height + captionHeight

@@ -2,7 +2,8 @@ import Foundation
 import LiveCaptionsCore
 import SwiftUI
 
-/// Menu-bar-only app (LSUIElement): no Dock icon, no main window.
+/// Menu-bar-only app (LSUIElement): no Dock icon. Besides the menu it has a
+/// Settings window and a welcome window that opens on first launch.
 @main
 struct LiveCaptionsApp: App {
     @State private var model = AppModel()
@@ -19,8 +20,29 @@ struct LiveCaptionsApp: App {
         MenuBarExtra {
             MenuContent(model: model)
         } label: {
-            Image(systemName: model.phase == .running ? "captions.bubble.fill" : "captions.bubble")
-                .accessibilityLabel("LiveCaptions")
+            Image(systemName: Self.symbolName(for: model.status.indicator))
+                .accessibilityLabel("LiveCaptions: \(model.status.text)")
+        }
+
+        Window("Welcome to LiveCaptions", id: OnboardingView.windowID) {
+            OnboardingView(model: model)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(model.hasCompletedOnboarding ? .suppressed : .presented)
+
+        Settings {
+            SettingsView(model: model)
+        }
+    }
+
+    /// Filled only while audio is captured, so the icon never claims to
+    /// listen when nothing does.
+    static func symbolName(for indicator: SessionStatus.Indicator) -> String {
+        switch indicator {
+        case .off: "captions.bubble"
+        case .busy: "ellipsis.bubble"
+        case .listening: "captions.bubble.fill"
+        case .attention: "exclamationmark.bubble"
         }
     }
 }

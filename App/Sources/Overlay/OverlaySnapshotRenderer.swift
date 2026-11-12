@@ -27,13 +27,20 @@ enum OverlaySnapshotRenderer {
         var failures = stateNames.count - frames.count
         if failures > 0 { print("missing overlay states: \(failures)") }
         for (name, frame) in frames {
-            for (styleName, style) in [("notch", notch), ("pill", OverlayStyle.pill)] {
-                let url = directory.appendingPathComponent("overlay-\(styleName)-\(name).png")
-                if write(scene(frame: frame, style: style), to: url) {
-                    print("rendered \(url.path)")
-                } else {
-                    print("failed to render \(url.path)")
-                    failures += 1
+            // Every state at the default size; the wrap state also at the
+            // largest size from Settings, to check that the panel grows with it.
+            var sizes: [(prefix: String, size: CaptionFontSize)] = [("", .default)]
+            if name == largeFontState { sizes.append(("xl-", .extraLarge)) }
+            for (prefix, size) in sizes {
+                for (styleName, style) in [("notch", notch), ("pill", OverlayStyle.pill)] {
+                    let url = directory.appendingPathComponent("overlay-\(styleName)-\(prefix)\(name).png")
+                    let metrics = OverlayMetrics(fontSize: size)
+                    if write(scene(frame: frame, style: style, metrics: metrics), to: url) {
+                        print("rendered \(url.path)")
+                    } else {
+                        print("failed to render \(url.path)")
+                        failures += 1
+                    }
                 }
             }
         }
@@ -44,6 +51,9 @@ enum OverlaySnapshotRenderer {
     /// one finalized line, finalized text plus a volatile tail, a two-line wrap
     /// with a volatile tail, and two finalized lines.
     static let stateNames = ["1-final-line", "2-final-plus-volatile", "3-two-line-wrap-volatile", "4-two-line-final"]
+
+    /// Also rendered with the extra large font (`overlay-*-xl-<state>.png`).
+    static let largeFontState = "3-two-line-wrap-volatile"
 
     private static func demoFrames() -> [(String, CaptionFrame)] {
         var composer = CaptionComposer()
@@ -72,11 +82,11 @@ enum OverlaySnapshotRenderer {
 
     /// The overlay on a strip of fake desktop with a menu bar, at the size the
     /// panel would have.
-    private static func scene(frame: CaptionFrame, style: OverlayStyle) -> some View {
-        let caption = OverlayMetrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
+    private static func scene(frame: CaptionFrame, style: OverlayStyle, metrics: OverlayMetrics) -> some View {
+        let caption = metrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
         let panelHeight = caption.height + style.topInset
         let menuBarHeight: CGFloat = 32
-        let sceneWidth: CGFloat = 760
+        let sceneWidth = max(760, caption.width + 80)
         return ZStack(alignment: .top) {
             LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
             Color(white: 0.85).frame(height: menuBarHeight)
@@ -85,7 +95,7 @@ enum OverlaySnapshotRenderer {
                     .fill(.black)
                     .frame(width: notchWidth, height: notchHeight)
             }
-            CaptionOverlayView(frame: frame, style: style)
+            CaptionOverlayView(frame: frame, style: style, metrics: metrics)
                 .frame(width: caption.width, height: panelHeight)
                 .padding(.top, style == .pill ? menuBarHeight + OverlayPlacement.pillGap : 0)
         }

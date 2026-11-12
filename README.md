@@ -4,11 +4,22 @@ Live English captions for any audio on your Mac, shown near the notch.
 Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
 are fast and nothing leaves your Mac.
 
-Status: early scaffold. The menu-bar app runs, but Start/Stop are
-placeholders until transcription lands and the pipeline is wired (see #13).
-System audio capture works on its own: use **Debug: Audio Capture** in the
-menu to see a live level meter. It needs the Screen & System Audio Recording
-permission; after granting it, quit and reopen LiveCaptions.
+Status: MVP in progress (see #13). Start Captions in the menu bar (or ⌃⌥C
+from any app) captions the audio your Mac plays, at the notch. The menu says
+what is really happening: checking or downloading the speech model, waiting
+for permission, listening, no audio playing, or the error.
+
+What it needs:
+
+- The **Screen & System Audio Recording** permission. After granting it,
+  relaunch LiveCaptions (the menu and the welcome window have a button).
+- Apple's **English speech model**. macOS downloads it once from Apple when
+  you click "Download English Speech Model". That download is the only time
+  LiveCaptions uses the network.
+
+Nothing is saved: no audio, no transcripts. Only the settings (text size,
+position, hide from screen sharing) are stored as preferences. The
+microphone is not captioned yet; it is only in **Debug: Audio Capture**.
 
 Requirements: Apple Silicon Mac, macOS 26 or later.
 
@@ -45,10 +56,13 @@ Every PR and every push to `main` builds the app on GitHub Actions.
 
 Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
 overlay in notch and pill style for fixed states (one finalized line,
-finalized text plus a volatile tail, a two-line wrap, two finalized lines).
+finalized text plus a volatile tail, a two-line wrap, two finalized lines),
+plus the two-line wrap at the extra large text size (`overlay-*-xl-*.png`).
 
 Each build has a new ad-hoc signature, so macOS may ask for audio permissions
 again after you install a newer build.
+
+The manual test checklist for a real Mac is [docs/TESTING.md](docs/TESTING.md).
 
 ## Build locally
 
