@@ -51,6 +51,7 @@ translation stage. Core and App sources must not use networking APIs;
 
 **Consequences.** Other languages and translation need a new decision. Any
 future network feature must live outside the caption path and be opt-in.
+Enforcement and the one sanctioned exception are in 0012.
 
 ## 0004: Unsandboxed, hardened runtime, ad-hoc signed builds
 
@@ -268,3 +269,57 @@ and may be missing.
 **Consequences.** #11 wires `SystemSpeechAssets` into the menu states and
 feeds `SpeechAnalyzerTranscriber` events into a `CaptionStore`. Latency still
 needs measuring on a real Mac.
+
+## 0012: Offline rule is enforced on sources, dependencies and the binary
+
+2026-11-12 · #25
+
+**Context.** An audit found that `check-offline.sh` (0003) only matched
+`URLSession`, `URLRequest`, `WebSocket`, `NW*` and `import Network`.
+`SFSpeechRecognizer` with server recognition, `NSURLConnection`, the `nw_*` C
+API, remote URL literals, `import WebKit`, BSD sockets, `Process` running
+`curl` and CFNetwork streams all passed. Remote packages and the built
+binary were not checked at all.
+
+**Decision.** Three checks, each with bad/good fixtures run by
+`scripts/check-offline-selftest.sh` on Linux and in CI:
+
+- `scripts/check-offline.sh` (sources): also bans `SFSpeech*` outright (the
+  app uses `SpeechAnalyzer`/`SpeechTranscriber`), `NSURLConnection`, `nw_*`,
+  CFNetwork/CFSocket/CFStream/CFHTTP/CFHost, `NetService`, imports of WebKit,
+  CFNetwork, MultipeerConnectivity, CloudKit and NetworkExtension, `http`,
+  `https`, `ws`, `wss` and `ftp` URL string literals (any case), sockets and the
+  resolver, `Process`/`NSTask`/`posix_spawn`/`NSAppleScript`, and `dlopen`.
+  Whole-line `//` comments are ignored. Other URL schemes
+  (`x-apple.systempreferences:`, `file:`) stay allowed.
+- `scripts/check-dependencies.sh`: no `url:`/`id:` package or binary target
+  in any `Package.swift` or `Package@swift-*.swift`, no pins in a
+  `Package.resolved`, no `url:`/`github:` (bare or quoted)
+  package in `project.yml`, no CocoaPods or Carthage. The remote allow-list in
+  the script is empty.
+- `scripts/check-linked-frameworks.sh` (after the build, macOS): every library
+  in `otool -L` must be on an allow-list of system frameworks and
+  `libSystem`/`libobjc`/`libswift*`; Network, CFNetwork, WebKit and the Swift
+  Network overlay are always rejected; `nm -u` must not show sockets, the
+  resolver, `nw_*`, CFNetwork streams, `NSURLSession`/`NSURLConnection`,
+  `SFSpeechRecognizer` or `dlsym`.
+
+The one sanctioned network use is the en-US speech model download through
+`AssetInventory` (Speech framework). The system performs it, the app never
+opens a connection, and only when the app asks for a missing model
+(0011). `AssetInventory`, `SpeechAnalyzer` and `SpeechTranscriber` are
+therefore allowed.
+
+**Consequences.** `make check-offline` runs the source and dependency checks;
+`make check-linked-frameworks` runs after `make package` in CI. Linking a new
+system framework means adding it to the allow-list in the same PR, with a
+reason in the PR. Test targets are not scanned (the real-audio test runs
+`say` through `Process`). Indirect traffic inside allowed system frameworks
+(for example AVFoundation loading a remote URL passed as a variable) is out
+of reach of these checks; reviews still matter. So is deliberate evasion in
+source, such as a URL or API name built by concatenation or interpolation.
+
+Each check exits 1 for a finding and 2 for an internal error (missing path,
+unreadable file or directory, failing `grep`/`find`), so a broken scan never
+reports OK. The self-test requires exit 1 for every bad fixture and exit 2 for
+unreadable inputs.

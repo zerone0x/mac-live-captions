@@ -43,7 +43,7 @@ jobs:
       - name: Check caption path stays offline
         run: make check-offline
 
-      - name: Self-test the offline check
+      - name: Self-test the offline checks
         run: scripts/check-offline-selftest.sh
 
       - name: Core tests
@@ -54,6 +54,9 @@ jobs:
 
       - name: Build, verify and package app
         run: make package
+
+      - name: Check linked frameworks stay offline
+        run: make check-linked-frameworks
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v6

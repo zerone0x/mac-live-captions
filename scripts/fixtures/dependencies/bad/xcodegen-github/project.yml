@@ -1,0 +1,5 @@
+name: X
+packages:
+  NIO:
+    github: apple/swift-nio
+    from: 2.0.0
