@@ -19,8 +19,9 @@ AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶
 | Stage | Contract (Core) | Real implementation | Lives in | Wave |
 |---|---|---|---|---|
 | AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>` | ScreenCaptureKit system audio; microphone later, opt-in | App | #7 |
-| Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>` | `SpeechAnalyzer` + `SpeechTranscriber` (en-US) | App (adapter), Core (logic) | #8 |
-| CaptionStore | concrete type, pure logic | n/a (no platform code) | Core | #8 |
+| Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>`; `SegmentTracker` (stable IDs), `AudioTimeline` | `SpeechAnalyzerTranscriber` (`SpeechAnalyzer` + `SpeechTranscriber`, en-US) | SpeechAdapter package (adapter), Core (logic) | #8 |
+| Speech model | `protocol SpeechAssetProvider`, `SpeechAssetState` | `SystemSpeechAssets` (`AssetInventory`) | SpeechAdapter package, Core | #8 |
+| CaptionStore | `struct CaptionStore`, pure logic | n/a (no platform code) | Core | #8 |
 | Overlay | `protocol CaptionPresenter` (`@MainActor`) | notch overlay window | App | #9 |
 | Session / menu bar | `SessionPhase` state machine | `MenuBarExtra` | Core + App | #6, #11 |
 
@@ -33,6 +34,14 @@ Value types shared by the stages (all `Sendable`, all in Core):
 - `TranscriptEvent`: `.volatile(segment)` (may still change, drives the live
   line only) or `.final(segment)` (stable, goes into the transcript).
 - `CaptionSnapshot` / `CaptionLine`: what the overlay shows now; empty means hide.
+- `SpeechAssetState`: the en-US model is checking, not installed, downloading,
+  ready, unsupported or failed. `TranscriptionError` says why a transcriber
+  cannot run.
+
+`CaptionStore` rules (DECISIONS 0006): volatile text is replaced in place under
+its `SegmentID`; a final result keeps that ID and is then immutable; the
+transcript keeps the newest `historyLimit` segments; the snapshot is the last
+`visibleFinalLines` finals plus the volatile lines.
 
 Contracts are a starting point. The wave that first implements a stage may
 reshape its protocol; record the change in DECISIONS.md.
@@ -40,13 +49,16 @@ reshape its protocol; record the change in DECISIONS.md.
 ## Module boundaries
 
 ```
-App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit, Speech)
+App/                      thin platform glue (SwiftUI/AppKit, ScreenCaptureKit)
   Sources/                @main app, menu, adapters that conform to Core protocols
   Info.plist              LSUIElement, usage strings
   LiveCaptions.entitlements
 Packages/Core/            local Swift package "Core", product LiveCaptionsCore
   Sources/LiveCaptionsCore/   pure logic + protocols, no UI, no hardware
   Tests/LiveCaptionsCoreTests/  Swift Testing; fakes for every protocol
+Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0005)
+  Sources/LiveCaptionsSpeech/   SpeechAnalyzer/SpeechTranscriber/AssetInventory adapter
+  Tests/LiveCaptionsSpeechTests/  converter tests, real-audio test (skips without the model)
 project.yml               XcodeGen spec (the .xcodeproj is generated, not committed)
 Makefile                  the commands CI runs
 scripts/                  CI helpers (offline check, bundle verification)
@@ -68,11 +80,15 @@ Rules:
 
 ## Testing
 
-- `make test` runs the Core package tests with Swift Testing (`import Testing`).
+- `make test` runs the Core and SpeechAdapter package tests with Swift Testing
+  (`import Testing`).
 - Every protocol has a fake in `Tests/LiveCaptionsCoreTests/Fakes.swift`
-  (`FakeAudioSource`, `ScriptedTranscriber`, `RecordingPresenter`). New stages
-  add their fake there. If App tests ever need them, move them to a test-support
-  target.
+  (`FakeAudioSource`, `ScriptedTranscriber`, `ReplayTranscriber`,
+  `RecordingPresenter`, `ScriptedSpeechAssets`). New stages add their fake
+  there. If App tests ever need them, move them to a test-support target.
+- The SpeechAdapter real-audio test speaks a sentence with `say`, runs it
+  through `SpeechAnalyzer` and checks the final captions. It installs the en-US
+  model if it can and otherwise skips, printing a `[real-audio]` reason.
 - Things CI cannot check (real audio, permission prompts, the notch, focus
   behaviour) go into the PR description as a manual checklist for the owner.
 
@@ -82,6 +98,6 @@ Rules:
   arm64 app with hardened runtime.
 - `make package` also runs `scripts/verify-app.sh` (LSUIElement, usage strings,
   arm64, signature, entitlements) and zips the app.
-- `.github/workflows/ci.yml` runs `check-offline`, `test` and `package` on a
+- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages) and `package` on a
   `macos-26` runner for every PR and push to `main`, and uploads the zip as a
   workflow artifact.

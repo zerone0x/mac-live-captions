@@ -6,7 +6,7 @@ build/
 DerivedData/
 .build/
 .swiftpm/
-Packages/Core/Package.resolved
+Packages/*/Package.resolved
 
 # macOS / editors
 .DS_Store

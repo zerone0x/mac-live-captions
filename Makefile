@@ -7,7 +7,7 @@ DERIVED  := build/DerivedData
 APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
 
-.PHONY: all generate test build package verify check-offline open clean
+.PHONY: all generate test test-core test-speech build package verify check-offline open clean
 
 all: check-offline test build
 
@@ -15,9 +15,18 @@ all: check-offline test build
 generate:
 	xcodegen generate
 
-## Run the Core package unit tests (Swift Testing).
-test:
+## Run all package tests (Swift Testing).
+test: test-core test-speech
+
+## Core logic tests: pure Swift, no hardware.
+test-core:
 	swift test --package-path Packages/Core
+
+## Speech adapter tests. The real-audio test needs `say` and the en-US speech
+## model; it skips with a printed reason when they are missing
+## (LIVECAPTIONS_SKIP_REAL_AUDIO=1 skips it on purpose).
+test-speech:
+	swift test --package-path Packages/SpeechAdapter
 
 ## Build the ad-hoc signed app into build/DerivedData.
 build: generate
