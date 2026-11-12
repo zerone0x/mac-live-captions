@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import LiveCaptionsCore
+import Speech
 import Testing
 @testable import LiveCaptionsSpeech
 
@@ -108,6 +109,9 @@ enum RealAudio {
             return skip("`say` could not write a clip: \(error)")
         }
 
+        let supported = await SpeechTranscriber.supportedLocales
+        let installed = await SpeechTranscriber.installedLocales
+        log("SpeechTranscriber.isAvailable = \(SpeechTranscriber.isAvailable); supported locales: \(supported.count); installed locales: \(installed.count)")
         let assets = SystemSpeechAssets()
         var state = await assets.currentState()
         log("en-US speech model state before the test: \(state.statusText)")

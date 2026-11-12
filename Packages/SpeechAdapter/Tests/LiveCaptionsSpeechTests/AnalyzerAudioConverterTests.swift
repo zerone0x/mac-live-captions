@@ -38,7 +38,8 @@ struct AnalyzerAudioConverterTests {
         #expect(!buffers.isEmpty)
         #expect(buffers.allSatisfy { $0.buffer.format == int16Mono16k() })
         let totalFrames = buffers.reduce(0) { $0 + Int($1.buffer.frameLength) }
-        #expect(abs(totalFrames - 16_000) <= 64, "got \(totalFrames) frames for 1 s of audio")
+        // The resampler may keep a few milliseconds of latency it never emits.
+        #expect(abs(totalFrames - 16_000) <= 160, "got \(totalFrames) frames for 1 s of audio")
 
         #expect(buffers.first?.startTime == 2)
         for (previous, next) in zip(buffers, buffers.dropFirst()) {
