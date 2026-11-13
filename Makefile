@@ -67,11 +67,11 @@ screenshots:
 compare-screenshots:
 	swift scripts/compare-screenshots.swift $(REFS) $(SHOTS)
 
-## Replace the overlay references with the renders from `make screenshots`
+## Replace each reference with the same-named render from `make screenshots`
 ## (or from a CI artifact: SHOTS=<downloaded dir>). Look at them first.
+## To reference a new image, copy it into $(REFS) once by hand.
 record-screenshots:
-	rm -f $(REFS)/overlay-*.png
-	cp $(SHOTS)/overlay-*.png $(REFS)/
+	set -e; for ref in $(REFS)/*.png; do cp "$(SHOTS)/$$(basename "$$ref")" "$$ref"; done
 
 ## Screenshots of the running app with the demo captions (needs a GUI session
 ## and Screen Recording for the terminal; CI runners have both).

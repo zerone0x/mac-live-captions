@@ -6,8 +6,92 @@ and no on-device speech model. These checks need a real Apple Silicon Mac
 with macOS 26. Run them for every PR that touches capture, speech, the
 overlay or the menu, and note the result in the PR.
 
+To see the UI without a Mac, use the CI screenshots (next section).
 Get a build as described in the README ("Try a CI build"). Each CI build has a
 new ad-hoc signature, so macOS may ask for the permission again.
+
+## Screenshots from CI
+
+Every CI run uploads two screenshot artifacts (kept 14 days). `<sha>` is the
+PR head commit, or the pushed commit on `main`. Reviewers and verifier agents
+without a Mac read the PNGs to see the UI. A PR that changes the overlay, the
+menu, Settings or the welcome window should say that its screenshots were
+looked at (see the PR template).
+
+```sh
+gh run list --repo zerone0x/mac-live-captions --workflow ci.yml --branch <branch>
+gh run download <run-id> --repo zerone0x/mac-live-captions --pattern '*-screenshots-*'
+```
+
+`gh run download` makes one folder per artifact. Open the PNGs in any image
+viewer; agents can read them as images directly.
+
+### Rendered views: `overlay-screenshots-<sha>`
+
+`make screenshots` runs the built app with `--render-overlay-snapshots <dir>`.
+It needs no permission, and the output does not depend on timing.
+
+| Files | What they show |
+|---|---|
+| `overlay-notch-<state>.png`, `overlay-pill-<state>.png` | The caption overlay at the notch and as the pill (displays without a notch), on a fake menu bar. Four states, played from the demo script through the real `CaptionComposer`: `1-final-line`, `2-final-plus-volatile` (grey tentative tail), `3-two-line-wrap-volatile`, `4-two-line-final`. |
+| `overlay-*-xl-3-*.png`, `overlay-bottom-3-*.png` | The two-line wrap at the extra large text size, and in the bottom position above a fake Dock. |
+| `overlay-*-increase-contrast-*`, `overlay-pill-reduce-transparency-*`, `overlay-pill-*light-desktop-*` | The accessibility variants (see Accessibility below). |
+| `menu-<state>.png` | A stand-in for the open menu-bar menu: the menu-bar icon and the menu's first items for twelve `SessionStatus` states (`off`, `off-model-missing`, `busy-*`, `listening*`, `attention-*`). Grey items are disabled, as in the real menu. The real menu is an `NSMenu` that only exists while it is open, so this is drawn from the same status and phase, not captured. |
+| `settings.png`, `welcome.png` | The real Settings and welcome views, hosted in an off-screen window (real pickers and toggles). The welcome window says "Checking English speech model…" because it is drawn before the check finishes. |
+
+### Reference images
+
+The overlay renders that have a file in `scripts/fixtures/screenshots/` (the
+four states in notch and pill style, the extra large and the bottom renders;
+not the accessibility variants) are compared with it by
+`make compare-screenshots` (`scripts/compare-screenshots.swift`). A pixel
+differs when a channel is off by more than 8 of 255; an image fails when more
+than 0.1 % of its pixels differ. A failing image gets `<name>.diff.png`
+(differing pixels in red) in the same artifact.
+
+The renders were byte-identical on separate CI runners, so a failure means
+the overlay changed. If the change is intended, look at the new PNGs, then
+replace the references from the CI artifact and commit them with the PR:
+
+```sh
+make record-screenshots SHOTS=<downloaded overlay-screenshots-<sha> folder>
+```
+
+A new macOS or Xcode on the runner image can change font rendering. Then
+every image fails at once, and re-recording is the fix. The menu, Settings,
+welcome and accessibility renders have no references.
+
+### The running app: `live-screenshots-<sha>`
+
+CI switches the desktop to a grey picture (the runner's default desktop is
+black, like the pill). Then `make live-screenshots`
+(`scripts/live-screenshots.sh`) starts the built app directly with
+`--demo-captions` (the scripted caption feed: no audio, no permissions) and,
+3, 7 and 12 seconds after launch, runs `screencapture -x` for the whole
+screen (`live-full-<t>s.png`) and the top 240 points (`live-top-<t>s.png`).
+`windows-<t>s.txt` lists the app's on-screen windows (layer and frame), so a
+window missing from a PNG can be told apart from a capture problem.
+`app.log` is the app's output. The step fails if the app quits or has fewer
+than two windows on screen.
+
+What the `macos-26` runner shows:
+
+- The screen is 1024 × 768 points with no notch, so the overlay is the pill
+  under the menu bar (the layer-27 window). The captions change between the
+  shots as the demo plays.
+- The welcome window (layer 0) is open, because every runner is a first
+  launch. It says on-device speech is not supported (the runner is a VM) and
+  that Screen & System Audio Recording is allowed: the runner agent holds
+  that permission, and an app started from a step inherits it.
+- The menu-bar icon (the outline captions bubble) is in the menu bar.
+- Other apps' window contents are visible, because `screencapture` started
+  from a step has Screen Recording through the runner agent. On a Mac where
+  the terminal lacks that permission, the PNGs show only the desktop and the
+  menu bar.
+
+Not possible in CI, so these stay on the manual checklist below: real system
+audio and speech (silence, and no speech model in a VM), the permission
+prompt, and a real notch.
 
 ## First run
 
