@@ -43,6 +43,11 @@ struct AudioCaptureStatusTests {
         #expect(status == .capturing)
     }
 
+    @Test("a restarted stream clears 'No audio' (its silence monitor starts afresh)")
+    func startedClearsNoAudio() {
+        #expect(AudioCaptureStatus.noAudio.applying(.started) == .capturing)
+    }
+
     @Test("giving up after reconnecting is a failure")
     func reconnectFails() {
         let status = AudioCaptureStatus.reconnecting(attempt: 6).applying(.failed("stream stopped"))

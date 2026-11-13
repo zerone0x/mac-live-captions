@@ -4,6 +4,7 @@
 
 import AVFoundation
 import CoreMedia
+import Foundation
 import LiveCaptionsCore
 
 /// Copies a ScreenCaptureKit audio sample buffer into an `AVAudioPCMBuffer`.
@@ -11,7 +12,7 @@ import LiveCaptionsCore
 /// Uses the buffer's real stream description instead of assuming a format
 /// (Audicap: a hard-coded format silently dropped every buffer when the
 /// system delivered something else).
-func makePCMBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
+public func makePCMBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
     guard CMSampleBufferDataIsReady(sampleBuffer),
           let description = CMSampleBufferGetFormatDescription(sampleBuffer),
           let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(description),
@@ -33,11 +34,11 @@ func makePCMBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
 ///
 /// Not thread-safe: use it from one serial queue. It keeps one converter per
 /// input format so the resampler state carries over between buffers.
-final class MonoPCMConverter {
-    let outputFormat: AVAudioFormat
+public final class MonoPCMConverter {
+    public let outputFormat: AVAudioFormat
     private var converter: AVAudioConverter?
 
-    init() {
+    public init() {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: CaptureFormat.sampleRate,
@@ -50,11 +51,11 @@ final class MonoPCMConverter {
     }
 
     /// Drops the resampler state, for example before a new session.
-    func reset() {
+    public func reset() {
         converter = nil
     }
 
-    func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
+    public func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
         guard buffer.frameLength > 0 else { return [] }
         if buffer.format == outputFormat {
             return Self.samples(of: buffer)

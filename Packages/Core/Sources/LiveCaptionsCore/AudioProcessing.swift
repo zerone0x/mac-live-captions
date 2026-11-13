@@ -146,15 +146,20 @@ public struct AudioChunkAssembler: Sendable {
 
 /// Detects "capture runs but nothing is playing".
 ///
-/// Feed it the level and length of every block. It reports
-/// `.silenceDetected` once after `timeout` seconds of continuous silence and
+/// Works on a clock (monotonic seconds) rather than on the length of the
+/// audio it was fed, so it is right whether or not the capture API delivers
+/// buffers of silence: call `process(_:at:)` for every block that arrives and
+/// `check(at:)` from a timer. It reports `.silenceDetected` once when nothing
+/// louder than `threshold` arrived for `timeout` seconds, and
 /// `.soundDetected` on the first loud block after that.
 public struct SilenceMonitor: Sendable {
     /// Peak at or below this counts as silence (about -80 dBFS).
     public let threshold: Float
     public let timeout: TimeInterval
 
-    private var silentFor: TimeInterval = 0
+    /// When the current quiet stretch began: the last loud block, or the
+    /// start of monitoring. `nil` until the first call.
+    private var quietSince: TimeInterval?
     private var reportedSilence = false
 
     public init(threshold: Float = 1e-4, timeout: TimeInterval = 5) {
@@ -166,26 +171,40 @@ public struct SilenceMonitor: Sendable {
     /// Whether silence has been reported and not yet ended.
     public var isSilent: Bool { reportedSilence }
 
-    public mutating func process(_ level: AudioLevel, duration: TimeInterval) -> AudioCaptureEvent? {
-        if level.peak <= threshold {
-            silentFor += duration
-            // Tolerance: summing block lengths like 0.1 s drifts below the exact total.
-            if !reportedSilence && silentFor + 1e-9 >= timeout {
-                reportedSilence = true
-                return .silenceDetected
+    /// Whether a block with this level counts as silence.
+    public func isSilence(_ level: AudioLevel) -> Bool {
+        level.peak <= threshold
+    }
+
+    /// A block of audio with `level` arrived at `now`.
+    public mutating func process(_ level: AudioLevel, at now: TimeInterval) -> AudioCaptureEvent? {
+        guard isSilence(level) else {
+            quietSince = now
+            if reportedSilence {
+                reportedSilence = false
+                return .soundDetected
             }
             return nil
         }
-        silentFor = 0
-        if reportedSilence {
-            reportedSilence = false
-            return .soundDetected
-        }
-        return nil
+        return check(at: now)
     }
 
-    public mutating func reset() {
-        silentFor = 0
+    /// Reports silence if nothing loud arrived for `timeout` seconds before
+    /// `now`, including when no audio arrived at all.
+    public mutating func check(at now: TimeInterval) -> AudioCaptureEvent? {
+        guard let quietSince else {
+            self.quietSince = now
+            return nil
+        }
+        // Tolerance: sums of block lengths like 0.1 s drift below the exact total.
+        guard !reportedSilence, now - quietSince + 1e-9 >= timeout else { return nil }
+        reportedSilence = true
+        return .silenceDetected
+    }
+
+    /// Starts monitoring afresh at `now`, for a new or reconnected stream.
+    public mutating func reset(at now: TimeInterval) {
+        quietSince = now
         reportedSilence = false
     }
 }
