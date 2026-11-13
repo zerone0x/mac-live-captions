@@ -16,8 +16,23 @@ final class AudioCaptureProbe {
 
     private var source: (any AudioSource)?
     private var task: Task<Void, Never>?
+    /// Sources report status on their own threads, in order. One stream and
+    /// one main-actor consumer keep that order; a `Task` per update would not
+    /// (the menu could show "Capturing audio" after "Not capturing").
+    private let statusUpdates: AsyncStream<AudioCaptureStatus>.Continuation
 
     var isRunning: Bool { task != nil }
+
+    init() {
+        let (updates, continuation) = AsyncStream<AudioCaptureStatus>.makeStream()
+        statusUpdates = continuation
+        Task { [weak self] in
+            for await status in updates {
+                guard let self else { return }
+                self.status = status
+            }
+        }
+    }
 
     func start(_ origin: AudioOrigin) {
         guard task == nil else { return }
@@ -26,10 +41,9 @@ final class AudioCaptureProbe {
         level = .silence
         chunkCount = 0
 
-        // The probe lives as long as the app (owned by `AppModel`), so strong
-        // captures are fine here.
+        let statusUpdates = self.statusUpdates
         let onStatus: @Sendable (AudioCaptureStatus) -> Void = { status in
-            Task { @MainActor in self.status = status }
+            statusUpdates.yield(status)
         }
         let source: any AudioSource = switch origin {
         case .system: SystemAudioSource(onStatus: onStatus)

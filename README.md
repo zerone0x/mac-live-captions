@@ -71,7 +71,7 @@ Needs Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
 brew install xcodegen
-make test       # Core and SpeechAdapter package tests (Swift Testing)
+make test       # Core, AudioAdapter and SpeechAdapter package tests (Swift Testing)
 make build      # generate LiveCaptions.xcodeproj and build the app
 make package    # build, verify the bundle, zip to build/LiveCaptions.zip
 make open       # generate the project and open it in Xcode
@@ -87,6 +87,7 @@ the project file.
 App/              menu-bar app target (thin SwiftUI/AppKit glue)
 Packages/Core/    Swift package with the testable logic and pipeline protocols
 Packages/SpeechAdapter/  on-device speech recognition (SpeechAnalyzer, en-US)
+Packages/AudioAdapter/   PCM conversion for audio capture (AVFoundation)
 project.yml       XcodeGen spec
 Makefile          build/test commands, shared with CI
 scripts/          CI checks

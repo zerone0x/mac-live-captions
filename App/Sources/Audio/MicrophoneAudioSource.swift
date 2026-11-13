@@ -6,6 +6,7 @@ import AudioToolbox
 import AVFoundation
 import CoreAudio
 import Foundation
+import LiveCaptionsAudio
 import LiveCaptionsCore
 
 /// Captures the built-in microphone with `AVAudioEngine`. Off by default: the
@@ -16,10 +17,15 @@ import LiveCaptionsCore
 /// them from A2DP to the HFP call profile and playback quality falls apart.
 /// Rebuilds the engine when the audio configuration changes (headphones
 /// plugged in or out).
+///
+/// Uses the same run tokens as `SystemAudioSource` (DECISIONS 0013): a
+/// `stop()` while the permission prompt is open, or a configuration change
+/// racing `stop()`, can never leave an engine running. `onStatus` is called
+/// one at a time, in order, and must not call back into the source.
 final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
     let origin: AudioOrigin = .microphone
 
-    private let onStatus: @Sendable (AudioCaptureStatus) -> Void
+    private let reporter: CaptureStatusReporter
     /// Serialises sample processing; `converter`, `assembler` and `silence`
     /// are only touched on it.
     private let processingQueue = DispatchQueue(label: "dev.trine.LiveCaptions.microphone", qos: .userInitiated)
@@ -29,69 +35,121 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
 
     /// Guards everything below.
     private let lock = NSLock()
-    private var status: AudioCaptureStatus = .idle
+    private var runs = CaptureGenerations()
     private var engine: AVAudioEngine?
     private var configurationObserver: (any NSObjectProtocol)?
     private var continuation: AsyncThrowingStream<AudioChunk, any Error>.Continuation?
 
     init(onStatus: @escaping @Sendable (AudioCaptureStatus) -> Void = { _ in }) {
-        self.onStatus = onStatus
+        self.reporter = CaptureStatusReporter(deliver: onStatus)
     }
+
+    /// Monotonic seconds, for the silence clock.
+    private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
     func start() async throws -> AsyncThrowingStream<AudioChunk, any Error> {
         let (chunks, continuation) = AsyncThrowingStream<AudioChunk, any Error>.makeStream(
             bufferingPolicy: .bufferingNewest(SystemAudioSource.bufferedChunkLimit)
         )
-        let alreadyRunning = lock.withLock { () -> Bool in
-            guard self.continuation == nil else { return true }
+        let run = lock.withLock { () -> CaptureToken? in
+            guard let run = runs.begin() else { return nil }
             self.continuation = continuation
-            return false
+            // Same critical section as `runs.begin()`, so a `stop()` cannot
+            // end the run before it is opened. The reporter never takes this lock.
+            reporter.begin(run)
+            return run
         }
-        guard !alreadyRunning else {
+        guard let run else {
             throw AudioCaptureError.unavailable("Microphone capture is already running.")
         }
+        continuation.onTermination = { [weak self] termination in
+            guard case .cancelled = termination else { return }
+            Task { await self?.stop(only: run) }
+        }
+        let startedAt = Self.now
         processingQueue.sync {
             converter.reset()
             assembler.reset()
-            silence.reset()
+            silence.reset(at: startedAt)
         }
-        send(.startRequested)
 
-        guard await Self.requestPermission() else {
+        let granted = await Self.requestPermission()
+        // The prompt can stay open for a long time; `stop()` may have run.
+        // It already finished `chunks` and reported "stopped".
+        guard lock.withLock({ runs.isCurrent(run) }) else { return chunks }
+        guard granted else {
             let error = AudioCaptureError.permissionDenied(.microphone)
-            finish(throwing: error)
+            guard finish(run, throwing: error) else { return chunks }
             throw error
         }
         do {
-            try startEngine()
+            try startEngine(for: run)
+        } catch is StaleRun {
+            return chunks
         } catch {
             let captureError = (error as? AudioCaptureError)
                 ?? .unavailable("Could not start the microphone: \(error.localizedDescription)")
-            finish(throwing: captureError)
+            guard finish(run, throwing: captureError) else { return chunks }
             throw captureError
         }
-        send(.started)
-        continuation.onTermination = { [weak self] termination in
-            guard case .cancelled = termination else { return }
-            Task { await self?.stop() }
-        }
+        reporter.send(.started, for: run)
         return chunks
     }
 
     func stop() async {
-        guard let continuation = lock.withLock({ () -> AsyncThrowingStream<AudioChunk, any Error>.Continuation? in
+        await stop(only: nil)
+    }
+
+    /// Stops `target`, or whichever run is active if `target` is `nil`. A consumer
+    /// that cancels its chunk stream stops only its own run, never a newer one.
+    private func stop(only target: CaptureToken?) async {
+        let taken = lock.withLock { () -> (CaptureToken, Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
+            let ended: CaptureToken?
+            if let target {
+                ended = runs.end(target) ? target : nil
+            } else {
+                ended = runs.end()
+            }
+            guard let ended else { return nil }
             defer { self.continuation = nil }
-            return self.continuation
-        }) else { return }
-        stopEngine()
-        if let tail = processingQueue.sync(execute: { assembler.flush() }) {
-            continuation.yield(tail)
+            return (ended, detachEngine(), self.continuation)
         }
-        continuation.finish()
-        send(.stopped)
+        guard let taken else { return }
+        let (run, running, continuation) = taken
+        running?.tearDown()
+        // The assembler is shared: if a new run started meanwhile, it has
+        // reset the assembler and the samples in it are not ours.
+        let tail = processingQueue.sync { () -> AudioChunk? in
+            guard !lock.withLock({ runs.isActive }) else { return nil }
+            return assembler.flush()
+        }
+        if let tail {
+            continuation?.yield(tail)
+        }
+        // Report before finishing the chunk stream, so a consumer that waits
+        // for the stream to end has already been told "stopped".
+        reporter.end(run, with: .stopped)
+        continuation?.finish()
     }
 
     // MARK: Engine
+
+    /// `start()` or a rebuild resumed after `stop()`: give up quietly.
+    private struct StaleRun: Error {}
+
+    /// An engine with its tap and configuration observer.
+    private struct Running {
+        let engine: AVAudioEngine
+        let observer: (any NSObjectProtocol)?
+
+        func tearDown() {
+            if let observer {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
+    }
 
     private static func requestPermission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -104,7 +162,9 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
         }
     }
 
-    private func startEngine() throws {
+    /// Builds and starts an engine for `run` and makes it current. Throws
+    /// `StaleRun` (after stopping the new engine) if `run` ended meanwhile.
+    private func startEngine(for run: CaptureToken) throws {
         let engine = AVAudioEngine()
         let input = engine.inputNode
         if let device = AudioDevices.builtInInputDeviceID(), let unit = input.audioUnit {
@@ -120,87 +180,97 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
             throw AudioCaptureError.unavailable("No microphone input is available.")
         }
         input.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
-            self?.process(buffer)
+            self?.process(buffer, for: run)
         }
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            throw error
+        }
 
+        let engineID = ObjectIdentifier(engine)
         let observer = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
         ) { [weak self] _ in
-            self?.configurationChanged()
+            self?.configurationChanged(engine: engineID, for: run)
         }
-        lock.withLock {
+        let running = Running(engine: engine, observer: observer)
+        let accepted = lock.withLock { () -> Bool in
+            // Only one engine per run: a second rebuild racing this one loses.
+            guard runs.isCurrent(run), self.engine == nil else { return false }
             self.engine = engine
             configurationObserver = observer
+            return true
+        }
+        guard accepted else {
+            running.tearDown()
+            throw StaleRun()
         }
     }
 
-    private func stopEngine() {
-        let (engine, observer) = lock.withLock { () -> (AVAudioEngine?, (any NSObjectProtocol)?) in
-            defer {
-                self.engine = nil
-                configurationObserver = nil
-            }
-            return (self.engine, configurationObserver)
+    /// Takes the engine out of the source. Call under `lock`.
+    private func detachEngine() -> Running? {
+        defer {
+            engine = nil
+            configurationObserver = nil
         }
-        if let observer {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        guard let engine else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        guard let engine else { return nil }
+        return Running(engine: engine, observer: configurationObserver)
     }
 
-    /// The input format changed (device plugged in or out): rebuild the engine.
-    private func configurationChanged() {
-        guard lock.withLock({ continuation != nil }) else { return }
-        stopEngine()
+    /// The input format of `engine` changed (device plugged in or out):
+    /// rebuild it, unless the run ended or the engine was already replaced.
+    private func configurationChanged(engine changed: ObjectIdentifier, for run: CaptureToken) {
+        let running = lock.withLock { () -> Running? in
+            guard runs.isCurrent(run), let engine, ObjectIdentifier(engine) == changed else { return nil }
+            return detachEngine()
+        }
+        guard let running else { return }
+        running.tearDown()
         processingQueue.sync { converter.reset() }
         do {
-            try startEngine()
+            try startEngine(for: run)
+        } catch is StaleRun {
+            return
         } catch {
-            finish(throwing: .interrupted("The microphone stopped after an audio device change."))
+            finish(run, throwing: .interrupted("The microphone stopped after an audio device change."))
         }
     }
 
-    private func process(_ buffer: AVAudioPCMBuffer) {
+    private func process(_ buffer: AVAudioPCMBuffer, for run: CaptureToken) {
         processingQueue.sync {
-            guard let samples = try? converter.convert(buffer), !samples.isEmpty else { return }
+            // A tap of a stopped run's engine may still fire once or twice.
+            guard let continuation = lock.withLock({ runs.isCurrent(run) ? self.continuation : nil }),
+                  let samples = try? converter.convert(buffer),
+                  !samples.isEmpty
+            else { return }
             let chunks = assembler.append(samples)
-            let silenceEvent = silence.process(
-                AudioLevel(samples: samples),
-                duration: Double(samples.count) / CaptureFormat.sampleRate
-            )
-            let continuation = lock.withLock { self.continuation }
+            let silenceEvent = silence.process(AudioLevel(samples: samples), at: Self.now)
             for chunk in chunks {
-                continuation?.yield(chunk)
+                continuation.yield(chunk)
             }
             if let silenceEvent {
-                send(silenceEvent)
+                reporter.send(silenceEvent, for: run)
             }
         }
     }
 
-    private func finish(throwing error: AudioCaptureError) {
-        let continuation = lock.withLock { () -> AsyncThrowingStream<AudioChunk, any Error>.Continuation? in
+    /// Ends `run` with `error` and reports it. Returns `false` and does
+    /// nothing if `run` already ended (`stop()` got there first).
+    @discardableResult
+    private func finish(_ run: CaptureToken, throwing error: AudioCaptureError) -> Bool {
+        let taken = lock.withLock { () -> (Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
+            guard runs.end(run) else { return nil }
             defer { self.continuation = nil }
-            return self.continuation
+            return (detachEngine(), self.continuation)
         }
-        stopEngine()
-        send(error.event)
+        guard let taken else { return false }
+        let (running, continuation) = taken
+        running?.tearDown()
+        reporter.end(run, with: error.event)
         continuation?.finish(throwing: error)
-    }
-
-    private func send(_ event: AudioCaptureEvent) {
-        let changed = lock.withLock { () -> AudioCaptureStatus? in
-            let next = status.applying(event)
-            guard next != status else { return nil }
-            status = next
-            return next
-        }
-        if let changed {
-            onStatus(changed)
-        }
+        return true
     }
 }
 

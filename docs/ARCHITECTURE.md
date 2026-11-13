@@ -32,7 +32,9 @@ Value types shared by the stages (all `Sendable`, all in Core):
   are trivial; adapters convert to and from `AVAudioPCMBuffer`. Real sources
   emit contiguous 100 ms chunks at 16 kHz (`CaptureFormat`, DECISIONS 0006).
 - `AudioCaptureStatus` / `AudioCaptureError`: capture health (permission
-  denied, no audio, reconnecting, failed) as explicit states.
+  denied, no audio, reconnecting, failed) as explicit states. Sources report
+  it through `CaptureStatusReporter`, in order and only for the current run
+  (`CaptureToken`, DECISIONS 0013).
 - `TranscriptSegment`: stable `SegmentID`, text, time range, origin.
 - `TranscriptEvent`: `.volatile(segment)` (may still change, drives the live
   line only) or `.final(segment)` (stable, goes into the transcript).
@@ -93,6 +95,9 @@ Packages/Core/            local Swift package "Core", product LiveCaptionsCore
 Packages/SpeechAdapter/   local Swift package, product LiveCaptionsSpeech (DECISIONS 0010)
   Sources/LiveCaptionsSpeech/   SpeechAnalyzer/SpeechTranscriber/AssetInventory adapter
   Tests/LiveCaptionsSpeechTests/  converter tests, real-audio test (skips without the model)
+Packages/AudioAdapter/    local Swift package, product LiveCaptionsAudio (DECISIONS 0013)
+  Sources/LiveCaptionsAudio/    PCM buffer conversion for the capture sources (AVFoundation)
+  Tests/LiveCaptionsAudioTests/   converter tests
 project.yml               XcodeGen spec (the .xcodeproj is generated, not committed)
 Makefile                  the commands CI runs
 scripts/                  CI helpers (offline check, bundle verification)
@@ -121,7 +126,7 @@ Rules:
 
 ## Testing
 
-- `make test` runs the Core and SpeechAdapter package tests with Swift Testing
+- `make test` runs the Core, AudioAdapter and SpeechAdapter package tests with Swift Testing
   (`import Testing`).
 - Every protocol has a fake in `Tests/LiveCaptionsCoreTests/Fakes.swift`
   (`FakeAudioSource`, `ScriptedTranscriber`, `ReplayTranscriber`,
@@ -143,7 +148,7 @@ Rules:
   no `get-task-allow`, stripped binary) and zips the app. It is meant for
   Release builds; `scripts/verify-app-selftest.sh` checks that it rejects bad
   bundles.
-- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages), `package` and
+- `.github/workflows/ci.yml` runs `check-offline`, `test` (all packages), `package` and
   `check-linked-frameworks` on a
   `macos-26` runner for every PR and push to `main`, and uploads the zip as a
   workflow artifact.

@@ -61,7 +61,12 @@ public enum AudioCaptureStatus: Sendable, Hashable {
             .idle
         case (.idle, .startRequested), (.failed, .startRequested), (.permissionDenied, .startRequested):
             .starting
-        case (.starting, .started), (.reconnecting, .started):
+        // `.started` from `.noAudio`: a stream that was rebuilt (device-change
+        // restart, reconnect) starts its silence monitor afresh, so "no audio"
+        // must clear too; otherwise sound on the new stream is never reported
+        // and the menu stays on "No audio playing". If it stays quiet, the
+        // monitor reports silence again after its timeout.
+        case (.starting, .started), (.reconnecting, .started), (.noAudio, .started):
             .capturing
         case (.capturing, .silenceDetected):
             .noAudio

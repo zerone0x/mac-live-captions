@@ -7,6 +7,7 @@ import CoreAudio
 import CoreGraphics
 import CoreMedia
 import Foundation
+import LiveCaptionsAudio
 import LiveCaptionsCore
 import ScreenCaptureKit
 
@@ -15,19 +16,31 @@ import ScreenCaptureKit
 ///
 /// Delivers mono Float32 16 kHz `AudioChunk`s of 100 ms. The capture callback
 /// never blocks: chunks go into a bounded stream that drops the oldest audio if
-/// the consumer falls far behind. Status changes (permission, silence,
-/// reconnects) are reported through `onStatus`, on an arbitrary thread.
+/// the consumer falls far behind.
+///
+/// Status changes (permission, silence, reconnects) are reported through
+/// `onStatus` on an arbitrary thread, one call at a time and in order.
+/// `onStatus` must return quickly and must not call back into the source.
+///
+/// Every run (from `start()` to `stop()` or a final error) has a
+/// `CaptureToken`; each path that resumes later (after an `await`, a
+/// reconnect delay, a device-change check, a sample callback) checks it first,
+/// so nothing from a stopped run can start a stream, install a listener or
+/// report a status (DECISIONS 0013). If `stop()` runs while `start()` is
+/// still starting, `start()` returns a stream that is already finished.
 final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
     let origin: AudioOrigin = .system
 
     /// Chunks buffered for a slow consumer before the oldest are dropped (60 s).
     static let bufferedChunkLimit = 600
-    /// After the default output device changes, rebuild the stream if no audio
-    /// arrives within this many seconds. ScreenCaptureKit normally keeps
-    /// running across device changes (Audicap measured no lost words).
+    /// After the default output device changes, rebuild the stream if no
+    /// buffer arrives within this many seconds. ScreenCaptureKit normally
+    /// keeps running across device changes (Audicap measured no lost words).
     static let deviceChangeGracePeriod: TimeInterval = 4
+    /// How often "no audio" is checked when no buffers arrive at all.
+    static let silenceCheckInterval: TimeInterval = 0.5
 
-    private let onStatus: @Sendable (AudioCaptureStatus) -> Void
+    private let reporter: CaptureStatusReporter
     private let retryPolicy: CaptureRetryPolicy
     /// Sample handler queue. `converter`, `assembler` and `silence` are only
     /// touched on it.
@@ -38,20 +51,22 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
 
     /// Guards everything below.
     private let lock = NSLock()
-    private var status: AudioCaptureStatus = .idle
+    private var runs = CaptureGenerations()
     private var stream: SCStream?
     private var continuation: AsyncThrowingStream<AudioChunk, any Error>.Continuation?
-    private var isStopping = false
-    private var retryAttempt = 0
+    private var retry: CaptureRetryTracker
+    private var retryTask: Task<Void, Never>?
     private var bufferCount = 0
     private var deviceListener: AudioObjectPropertyListenerBlock?
+    private var silenceTimer: (any DispatchSourceTimer)?
 
     init(
         retryPolicy: CaptureRetryPolicy = CaptureRetryPolicy(),
         onStatus: @escaping @Sendable (AudioCaptureStatus) -> Void = { _ in }
     ) {
         self.retryPolicy = retryPolicy
-        self.onStatus = onStatus
+        self.retry = CaptureRetryTracker(policy: retryPolicy)
+        self.reporter = CaptureStatusReporter(deliver: onStatus)
         super.init()
     }
 
@@ -61,82 +76,114 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
     /// the grant for a running process only on the next launch.
     static var hasPermission: Bool { CGPreflightScreenCaptureAccess() }
 
+    /// Monotonic seconds, for the silence and retry clocks.
+    private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
+
     // MARK: AudioSource
 
     func start() async throws -> AsyncThrowingStream<AudioChunk, any Error> {
         let (chunks, continuation) = AsyncThrowingStream<AudioChunk, any Error>.makeStream(
             bufferingPolicy: .bufferingNewest(Self.bufferedChunkLimit)
         )
-        let alreadyRunning = lock.withLock { () -> Bool in
-            guard self.continuation == nil else { return true }
+        let run = lock.withLock { () -> CaptureToken? in
+            guard let run = runs.begin() else { return nil }
             self.continuation = continuation
-            isStopping = false
-            retryAttempt = 0
+            retry = CaptureRetryTracker(policy: retryPolicy)
             bufferCount = 0
-            return false
+            // Open the run in the reporter in the same critical section, so a
+            // `stop()` cannot end it first and leave "Starting" behind. Safe:
+            // the reporter never takes this lock.
+            reporter.begin(run)
+            return run
         }
-        guard !alreadyRunning else {
+        guard let run else {
             throw AudioCaptureError.unavailable("System audio capture is already running.")
         }
+        continuation.onTermination = { [weak self] termination in
+            // Only a consumer that stops listening stops capture; a stream we
+            // finished ourselves is already stopped.
+            guard case .cancelled = termination else { return }
+            Task { await self?.stop(only: run) }
+        }
+        let startedAt = Self.now
         sampleQueue.sync {
             converter.reset()
             assembler.reset()
-            silence.reset()
+            silence.reset(at: startedAt)
         }
-        send(.startRequested)
 
         guard Self.hasPermission else {
             // Shows the system prompt the first time; later it only reports
             // "denied". Either way the grant takes effect after a relaunch.
             _ = CGRequestScreenCaptureAccess()
             let error = AudioCaptureError.permissionDenied(.system)
-            finish(throwing: error)
+            guard finish(run, throwing: error) else { return chunks }
             throw error
         }
 
         do {
-            try await startStream()
+            try await startStream(for: run)
+        } catch is StaleRun {
+            // `stop()` ran while the stream was starting and finished `chunks`.
+            return chunks
         } catch {
             let captureError = Self.captureError(for: error)
-            finish(throwing: captureError)
+            guard finish(run, throwing: captureError) else { return chunks }
             throw captureError
         }
-        send(.started)
-        installDeviceListener()
-        continuation.onTermination = { [weak self] termination in
-            // Only a consumer that stops listening stops capture; a stream we
-            // finished ourselves is already stopped.
-            guard case .cancelled = termination else { return }
-            Task { await self?.stop() }
-        }
+        reporter.send(.started, for: run)
+        installDeviceListener(for: run)
+        startSilenceTimer(for: run)
         return chunks
     }
 
     func stop() async {
-        let (stream, continuation) = lock.withLock { () -> (SCStream?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?) in
-            isStopping = true
-            let stream = self.stream
-            let continuation = self.continuation
-            self.stream = nil
-            self.continuation = nil
-            return (stream, continuation)
+        await stop(only: nil)
+    }
+
+    /// Stops `target`, or whichever run is active if `target` is `nil`. A consumer
+    /// that cancels its chunk stream stops only its own run, never a newer one.
+    private func stop(only target: CaptureToken?) async {
+        let taken = lock.withLock { () -> Detached? in
+            let ended: CaptureToken?
+            if let target {
+                ended = runs.end(target) ? target : nil
+            } else {
+                ended = runs.end()
+            }
+            guard let ended else { return nil }
+            return detachAll(ended)
         }
-        removeDeviceListener()
-        if let stream {
+        guard let taken else { return }
+        taken.release()
+        if let stream = taken.stream {
             try? await stream.stopCapture()
         }
-        guard let continuation else { return }
-        if let tail = sampleQueue.sync(execute: { assembler.flush() }) {
-            continuation.yield(tail)
+        // The assembler is shared: if a new run started during the await, it
+        // has reset the assembler and the samples in it are not ours.
+        let tail = sampleQueue.sync { () -> AudioChunk? in
+            guard !lock.withLock({ runs.isActive }) else { return nil }
+            return assembler.flush()
         }
-        continuation.finish()
-        send(.stopped)
+        if let tail {
+            taken.continuation?.yield(tail)
+        }
+        // Report before finishing the chunk stream, so a consumer that waits
+        // for the stream to end has already been told "stopped".
+        reporter.end(taken.run, with: .stopped)
+        taken.continuation?.finish()
     }
 
     // MARK: Stream lifecycle
 
-    private func startStream() async throws {
+    /// `start()` or a reconnect resumed after `stop()`: give up quietly.
+    private struct StaleRun: Error {}
+
+    /// Starts a stream for `run` and makes it current. Throws `StaleRun` (and
+    /// stops the new stream) if `run` ended meanwhile.
+    private func startStream(for run: CaptureToken) async throws {
         let content = try await SCShareableContent.current
+        guard lock.withLock({ runs.isCurrent(run) }) else { throw StaleRun() }
         guard let display = content.displays.first else {
             throw AudioCaptureError.unavailable("No display found to attach system audio capture to.")
         }
@@ -156,91 +203,140 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
         try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleQueue)
         try await stream.startCapture()
 
-        let stopped = lock.withLock { () -> Bool in
-            guard !isStopping else { return true }
+        let startedAt = Self.now
+        let accepted = lock.withLock { () -> Bool in
+            // A newer stream may also have been started for this run (a
+            // device-change restart racing a reconnect); keep only one.
+            guard runs.isCurrent(run), self.stream == nil else { return false }
             self.stream = stream
-            return false
+            retry.streamStarted(at: startedAt)
+            return true
         }
-        if stopped {
-            // `stop()` ran while we were starting.
+        guard accepted else {
             try? await stream.stopCapture()
+            throw StaleRun()
         }
+        sampleQueue.sync { silence.reset(at: startedAt) }
     }
 
-    /// Handles an unexpected end of the stream: reconnect with backoff, or
-    /// finish the chunk stream with an explicit error.
-    private func handleFailure(_ error: any Error) {
+    /// Handles an unexpected end of the stream of `run`: reconnect with
+    /// backoff, or finish the chunk stream with an explicit error.
+    private func handleFailure(_ error: any Error, for run: CaptureToken) {
         let captureError = Self.captureError(for: error)
         if case .permissionDenied = captureError {
             // Retrying would only show the system prompt again.
-            finish(throwing: captureError)
+            finish(run, throwing: captureError)
             return
         }
-        let next = lock.withLock { () -> (attempt: Int, delay: TimeInterval?)? in
-            guard !isStopping else { return nil }
-            retryAttempt += 1
-            return (retryAttempt, retryPolicy.delay(forAttempt: retryAttempt))
+        let failedAt = Self.now
+        let decision = lock.withLock { () -> CaptureRetryTracker.Decision? in
+            guard runs.isCurrent(run) else { return nil }
+            return retry.streamFailed(at: failedAt)
         }
-        guard let next else { return }
-        guard let delay = next.delay else {
-            finish(throwing: AudioCaptureError.interrupted(captureError.localizedDescription))
+        switch decision {
+        case nil:
             return
-        }
-        send(.interrupted(attempt: next.attempt))
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(delay))
-            await self?.reconnect()
+        case .giveUp:
+            finish(run, throwing: AudioCaptureError.interrupted(captureError.localizedDescription))
+        case .retry(let attempt, let delay):
+            reporter.send(.interrupted(attempt: attempt), for: run)
+            let task = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                await self?.reconnect(run)
+            }
+            let current = lock.withLock { () -> Bool in
+                guard runs.isCurrent(run) else { return false }
+                retryTask = task
+                return true
+            }
+            if !current {
+                task.cancel()
+            }
         }
     }
 
-    private func reconnect() async {
-        guard !lock.withLock({ isStopping }) else { return }
+    private func reconnect(_ run: CaptureToken) async {
+        guard lock.withLock({ runs.isCurrent(run) }) else { return }
         do {
-            try await startStream()
-            lock.withLock { retryAttempt = 0 }
-            send(.started)
+            try await startStream(for: run)
+            reporter.send(.started, for: run)
+        } catch is StaleRun {
+            return
         } catch {
-            handleFailure(error)
+            handleFailure(error, for: run)
         }
     }
 
-    /// Stops the current stream and starts a new one, for a stalled stream.
-    private func restart() async {
+    /// Stops the current stream of `run` and starts a new one, for a stream
+    /// that went quiet after a device change. Not counted as a failure.
+    private func restart(_ run: CaptureToken) async {
         let stream = lock.withLock { () -> SCStream? in
-            guard !isStopping else { return nil }
-            let stream = self.stream
-            self.stream = nil
-            return stream
+            guard runs.isCurrent(run) else { return nil }
+            defer { self.stream = nil }
+            return self.stream
         }
         guard let stream else { return }
         try? await stream.stopCapture()
-        await reconnect()
+        await reconnect(run)
     }
 
-    /// Ends the chunk stream with `error` and reports the matching status.
-    private func finish(throwing error: AudioCaptureError) {
-        let continuation = lock.withLock { () -> AsyncThrowingStream<AudioChunk, any Error>.Continuation? in
-            let continuation = self.continuation
-            self.continuation = nil
-            self.stream = nil
-            isStopping = true
-            return continuation
+    /// Ends `run` with `error` and reports it. Returns `false` and does
+    /// nothing if `run` already ended (`stop()` got there first).
+    @discardableResult
+    private func finish(_ run: CaptureToken, throwing error: AudioCaptureError) -> Bool {
+        let taken = lock.withLock { () -> Detached? in
+            guard runs.end(run) else { return nil }
+            return detachAll(run)
         }
-        removeDeviceListener()
-        send(error.event)
-        continuation?.finish(throwing: error)
+        guard let taken else { return false }
+        taken.release()
+        // Normally nil here: failures clear the stream before they get here.
+        taken.stream?.stopCapture { _ in }
+        reporter.end(run, with: error.event)
+        taken.continuation?.finish(throwing: error)
+        return true
     }
 
-    private func send(_ event: AudioCaptureEvent) {
-        let changed = lock.withLock { () -> AudioCaptureStatus? in
-            let next = status.applying(event)
-            guard next != status else { return nil }
-            status = next
-            return next
+    /// Everything a run holds, taken out of the source in one step.
+    private struct Detached {
+        let run: CaptureToken
+        let stream: SCStream?
+        let continuation: AsyncThrowingStream<AudioChunk, any Error>.Continuation?
+        let retryTask: Task<Void, Never>?
+        let deviceListener: AudioObjectPropertyListenerBlock?
+        let silenceTimer: (any DispatchSourceTimer)?
+        let sampleQueue: DispatchQueue
+
+        /// Cancels the pending reconnect, the silence timer and the device
+        /// listener.
+        func release() {
+            retryTask?.cancel()
+            silenceTimer?.cancel()
+            if let deviceListener {
+                SystemAudioSource.removeDeviceListener(deviceListener, queue: sampleQueue)
+            }
         }
-        if let changed {
-            onStatus(changed)
+    }
+
+    /// Takes everything out of the source. Call under `lock`.
+    private func detachAll(_ run: CaptureToken) -> Detached {
+        defer {
+            stream = nil
+            continuation = nil
+            retryTask = nil
+            deviceListener = nil
+            silenceTimer = nil
         }
+        return Detached(
+            run: run,
+            stream: stream,
+            continuation: continuation,
+            retryTask: retryTask,
+            deviceListener: deviceListener,
+            silenceTimer: silenceTimer,
+            sampleQueue: sampleQueue
+        )
     }
 
     private static func captureError(for error: any Error) -> AudioCaptureError {
@@ -255,41 +351,81 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
         return .unavailable(nsError.localizedDescription)
     }
 
+    // MARK: No audio
+
+    /// Checks for "no audio" on a timer as well as on every buffer, so it is
+    /// detected even if ScreenCaptureKit sends no buffers while nothing plays.
+    private func startSilenceTimer(for run: CaptureToken) {
+        let timer = DispatchSource.makeTimerSource(queue: sampleQueue)
+        timer.schedule(
+            deadline: .now() + Self.silenceCheckInterval,
+            repeating: Self.silenceCheckInterval,
+            leeway: .milliseconds(100)
+        )
+        timer.setEventHandler { [weak self] in
+            // Runs on `sampleQueue`.
+            guard let self, lock.withLock({ runs.isCurrent(run) }) else { return }
+            if let event = silence.check(at: Self.now) {
+                reporter.send(event, for: run)
+            }
+        }
+        // Resume before storing: releasing a suspended dispatch source crashes.
+        // The handler checks the token, so an early tick does nothing wrong.
+        timer.resume()
+        let current = lock.withLock { () -> Bool in
+            guard runs.isCurrent(run) else { return false }
+            silenceTimer = timer
+            return true
+        }
+        if !current {
+            timer.cancel()
+        }
+    }
+
     // MARK: Output device changes
 
-    private func installDeviceListener() {
+    private func installDeviceListener(for run: CaptureToken) {
         let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.defaultOutputDeviceChanged()
+            self?.defaultOutputDeviceChanged(for: run)
         }
         var address = Self.defaultOutputDeviceAddress
         let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &address, sampleQueue, listener
         )
         guard status == noErr else { return }
-        lock.withLock { deviceListener = listener }
+        let installed = lock.withLock { () -> Bool in
+            // `stop()` ran after the listener was added: it could not see it.
+            guard runs.isCurrent(run) else { return false }
+            deviceListener = listener
+            return true
+        }
+        if !installed {
+            Self.removeDeviceListener(listener, queue: sampleQueue)
+        }
     }
 
-    private func removeDeviceListener() {
-        guard let listener = lock.withLock({ () -> AudioObjectPropertyListenerBlock? in
-            defer { deviceListener = nil }
-            return deviceListener
-        }) else { return }
-        var address = Self.defaultOutputDeviceAddress
+    private static func removeDeviceListener(_ listener: @escaping AudioObjectPropertyListenerBlock, queue: DispatchQueue) {
+        var address = defaultOutputDeviceAddress
         AudioObjectRemovePropertyListenerBlock(
-            AudioObjectID(kAudioObjectSystemObject), &address, sampleQueue, listener
+            AudioObjectID(kAudioObjectSystemObject), &address, queue, listener
         )
     }
 
-    /// ScreenCaptureKit usually keeps delivering after a device change. Only
-    /// rebuild the stream if it actually went quiet (no buffers at all, which
-    /// is different from buffers of silence).
-    private func defaultOutputDeviceChanged() {
+    /// ScreenCaptureKit usually keeps delivering after a device change. If no
+    /// buffer at all arrives within the grace period, rebuild the stream.
+    ///
+    /// No buffers can also mean ScreenCaptureKit sends nothing while nothing
+    /// plays; then the rebuild costs a short reconnect and loses no audio, so
+    /// the check does not need to tell the two apart (DECISIONS 0013).
+    private func defaultOutputDeviceChanged(for run: CaptureToken) {
         let countAtChange = lock.withLock { bufferCount }
         sampleQueue.asyncAfter(deadline: .now() + Self.deviceChangeGracePeriod) { [weak self] in
             guard let self else { return }
-            let stalled = lock.withLock { !isStopping && stream != nil && bufferCount == countAtChange }
+            let stalled = lock.withLock {
+                runs.isCurrent(run) && stream != nil && bufferCount == countAtChange
+            }
             if stalled {
-                Task { await self.restart() }
+                Task { await self.restart(run) }
             }
         }
     }
@@ -307,40 +443,38 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
 
 extension SystemAudioSource: SCStreamOutput, SCStreamDelegate {
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard type == .audio, let buffer = makePCMBuffer(from: sampleBuffer) else { return }
-        // Called on `sampleQueue`.
-        let samples: [Float]
-        do {
-            samples = try converter.convert(buffer)
-        } catch {
-            return
+        guard type == .audio else { return }
+        // Called on `sampleQueue`. Buffers of a stream that is no longer
+        // current (stopped, replaced, or from an older run) are dropped.
+        let current = lock.withLock { () -> (CaptureToken, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
+            guard self.stream === stream, let run = runs.current else { return nil }
+            bufferCount += 1
+            return (run, self.continuation)
         }
-        guard !samples.isEmpty else { return }
+        guard let current,
+              let buffer = makePCMBuffer(from: sampleBuffer),
+              let samples = try? converter.convert(buffer),
+              !samples.isEmpty
+        else { return }
+        let (run, continuation) = current
 
         let chunks = assembler.append(samples)
-        let silenceEvent = silence.process(
-            AudioLevel(samples: samples),
-            duration: Double(samples.count) / CaptureFormat.sampleRate
-        )
-        let continuation = lock.withLock { () -> AsyncThrowingStream<AudioChunk, any Error>.Continuation? in
-            bufferCount += 1
-            return self.continuation
-        }
+        let silenceEvent = silence.process(AudioLevel(samples: samples), at: Self.now)
         for chunk in chunks {
             continuation?.yield(chunk)
         }
         if let silenceEvent {
-            send(silenceEvent)
+            reporter.send(silenceEvent, for: run)
         }
     }
 
     func stream(_ stream: SCStream, didStopWithError error: any Error) {
-        let isCurrent = lock.withLock { () -> Bool in
-            guard self.stream === stream else { return false }
+        let run = lock.withLock { () -> CaptureToken? in
+            guard self.stream === stream, let run = runs.current else { return nil }
             self.stream = nil
-            return true
+            return run
         }
-        guard isCurrent else { return }
-        handleFailure(error)
+        guard let run else { return }
+        handleFailure(error, for: run)
     }
 }

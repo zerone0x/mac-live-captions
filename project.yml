@@ -44,6 +44,8 @@ packages:
     path: Packages/Core
   SpeechAdapter:
     path: Packages/SpeechAdapter
+  AudioAdapter:
+    path: Packages/AudioAdapter
 
 targets:
   LiveCaptions:
@@ -56,6 +58,8 @@ targets:
         product: LiveCaptionsCore
       - package: SpeechAdapter
         product: LiveCaptionsSpeech
+      - package: AudioAdapter
+        product: LiveCaptionsAudio
     settings:
       base:
         PRODUCT_NAME: LiveCaptions
