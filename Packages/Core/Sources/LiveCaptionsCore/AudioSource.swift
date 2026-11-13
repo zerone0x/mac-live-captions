@@ -2,8 +2,9 @@ import Foundation
 
 /// Where a stream of audio comes from.
 ///
-/// System audio is labelled "them / system"; the microphone, when the user
-/// turns it on explicitly, is labelled "me". No speaker is inferred beyond that.
+/// The caption pipeline uses system audio only; the microphone is used only by
+/// the debug capture test (docs/DECISIONS.md, 0014). Nothing reads the origin
+/// to label speakers, and no speaker is inferred (docs/SCOPE.md).
 public enum AudioOrigin: String, Sendable, Hashable, Codable, CaseIterable {
     case system
     case microphone
