@@ -106,6 +106,7 @@ project.yml               XcodeGen spec (the .xcodeproj is generated, not commit
 Makefile                  the commands CI runs
 scripts/                  CI checks (offline sources, dependencies, linked frameworks,
                           bundle verification) and their self-tests and fixtures
+                          (Package.resolved fixtures are stored as *.fixture, see 0022)
 ```
 
 Rules:

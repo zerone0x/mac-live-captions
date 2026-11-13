@@ -567,3 +567,23 @@ the PR that brings it; fix the warning instead of turning the setting off.
 A formatting-only diff fails `format-check` until `make format` runs, which
 needs a Swift 6 toolchain (Xcode 26, or Linux). Updating Xcode means editing
 the pin in `.github/workflows/ci.yml` and this entry.
+
+## 0022: Dependency-check fixtures are not named like manifests
+
+**Context.** The bad fixtures of `check-dependencies.sh` include
+`Package.resolved` files that pin an old swift-nio. GitHub's dependency graph
+reads any file with that name, so the public repo showed 10 Dependabot
+security alerts and a failing Dependabot run on every push, for an app with no
+dependencies.
+
+**Decision.** The three `Package.resolved` fixtures are stored as
+`Package.resolved.fixture`. `scripts/check-offline-selftest.sh` copies each
+dependency fixture folder to a temp dir, strips the `.fixture` suffix, and runs
+the check on the copy; a failed copy or rename aborts the self-test with exit
+2, and the self-test also asserts the renamed file exists. The bad fixtures
+are still required to exit 1. No `dependabot.yml` is added.
+
+**Consequences.** The alerts close on their own after the merge (confirm with
+`gh api "repos/zerone0x/mac-live-captions/dependabot/alerts?state=open"`,
+which should return an empty list). A new fixture that a manifest parser would
+read should use the same `.fixture` suffix.
