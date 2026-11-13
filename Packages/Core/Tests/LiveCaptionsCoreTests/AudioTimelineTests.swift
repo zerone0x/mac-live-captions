@@ -34,6 +34,23 @@ struct AudioTimelineTests {
         #expect(!isNewRun2)
     }
 
+    @Test("a mismatch of exactly the tolerance is still contiguous")
+    func mismatchAtTolerance() {
+        var timeline = AudioTimeline(tolerance: 0.25)
+        let first = timeline.accept(chunkStart: 0, duration: 1)
+        #expect(first)
+        _ = timeline.place(frames: 16_000, sampleRate: 16_000)
+        // Expected 1.0, got 1.25: off by exactly the tolerance.
+        let atTolerance = timeline.accept(chunkStart: 1.25, duration: 1)
+        #expect(!atTolerance)
+        // Expected 2.25, got 2.0: the same mismatch the other way round.
+        let earlyAtTolerance = timeline.accept(chunkStart: 2.0, duration: 1)
+        #expect(!earlyAtTolerance)
+        // Expected 3.0, got 3.5: beyond the tolerance.
+        let beyond = timeline.accept(chunkStart: 3.5, duration: 1)
+        #expect(beyond)
+    }
+
     @Test("a gap re-anchors at the new chunk")
     func gapReanchors() {
         var timeline = AudioTimeline()

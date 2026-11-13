@@ -77,6 +77,19 @@ struct SegmentTrackerTests {
         #expect(final.segment.id == open.segment.id)
     }
 
+    @Test("a later volatile result with a later start does not move the open phrase's start forward")
+    func openStartNeverMovesForward() throws {
+        var tracker = SegmentTracker(origin: .system)
+        let result = tracker.event(for: phrase("words", 2, 3))
+        let open = try #require(result)
+        _ = tracker.event(for: phrase("words and more", 3, 4))
+        // Ends after 2.0, where the phrase started: it covers the open phrase.
+        let finalResult = tracker.event(for: phrase("Words.", 2, 2.5, final: true))
+        let final = try #require(finalResult)
+        #expect(final.segment.id == open.segment.id)
+        #expect(tracker.openSegmentID == nil)
+    }
+
     @Test("empty results: nothing to show unless a volatile line must be cleared")
     func emptyResults() throws {
         var tracker = SegmentTracker(origin: .system)
@@ -134,6 +147,16 @@ struct SegmentTrackerTests {
         let event = try #require(result21)
         #expect(event.segment.start == 4)
         #expect(event.segment.end == 4)
+    }
+
+    @Test("a late final for an earlier phrase does not move the fallback start back")
+    func lastEndOnlyGrows() throws {
+        var tracker = SegmentTracker(origin: .system)
+        _ = tracker.event(for: phrase("first", 0, 4, final: true))
+        _ = tracker.event(for: phrase("earlier", 1, 2, final: true))
+        let result = tracker.event(for: phrase("second", .nan, .nan, final: true))
+        let event = try #require(result)
+        #expect(event.segment.start == 4)
     }
 
     @Test("reset forgets the open phrase")

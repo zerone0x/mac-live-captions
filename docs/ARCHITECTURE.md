@@ -144,6 +144,42 @@ Rules:
   behaviour) go into the PR description as a manual checklist for the owner;
   the standing checklist is [TESTING.md](TESTING.md).
 
+### Invariants and tests
+
+Core invariants the rest of the app relies on, and the test that fails when
+one breaks. Each row was checked by mutation testing (#26): breaking the
+invariant in the source makes the named test fail. Tests are in
+`Packages/Core/Tests/LiveCaptionsCoreTests/`; names are the `@Test` titles.
+
+| Invariant | Test (suite: title) |
+|---|---|
+| Composer drops finalized text that scrolled out of view, so memory and per-update work stay bounded in a long session | Caption composer: "a long session keeps composer state bounded: scrolled-out text and old IDs are dropped" |
+| Composer forgets segment IDs the store no longer reports | Caption composer: same test as above |
+| Lines never scroll back down when a volatile revision gets shorter | Caption composer: "finalizing replaces the volatile tail without moving earlier text" and other `layoutViolations` checks |
+| Text arriving at or after the collapse deadline starts on a fresh line | Caption composer: "text after an idle collapse starts on a fresh line", "text arriving exactly at the collapse deadline also starts on a fresh line" |
+| An unexpected pipeline end while starting or listening is `failed` and stops the pipeline (`[.stopPipeline]`) | SessionPhase: "an unexpected pipeline end while starting or listening fails and stops the pipeline" |
+| The pipeline end after Stop returns to idle with no effects | SessionPhase: "the pipeline end after Stop returns to idle with nothing left to do" |
+| The transcriber finding the model missing stops capture | SessionPhase: "the transcriber finding the model missing returns to waiting and stops capture" |
+| A stream that dies in any active status (also "no audio") shows "reconnecting" | AudioCaptureStatus: "a stream that dies while capturing shows 'reconnecting', even when nothing was playing" |
+| A restarted stream clears "no audio" | AudioCaptureStatus: "a restarted stream clears 'No audio' (its silence monitor starts afresh)" |
+| Chunk times stay contiguous, also after a flushed short chunk | Audio processing: "chunks are contiguous: each starts where the previous ended", "after a flush, the next chunk starts where the short flushed chunk ended" |
+| The level meter stays within 0...1, also above full scale | Audio processing: "samples above full scale still fill the meter only to the top" |
+| Silence is reported on time despite rounding drift in summed block times | Audio processing: "silence is reported on time when block times are summed with rounding drift" |
+| Reconnect delays back off exponentially, are capped, and stop after `maxAttempts` | Audio processing: "retry backs off exponentially, capped, then gives up" |
+| The notch overlay is at least the notch plus a 24-point shoulder on each side | Overlay placement: "is never narrower than the notch plus its shoulders" (literal 252) |
+| Zero-width auxiliary areas are not a notch | Overlay placement: "detects the notch from the auxiliary areas and safe-area inset" |
+| The status reporter never reopens a run older than the newest run seen; a late `end` of an older run cannot lower it | Capture lifecycle: "an older run cannot be reopened after a newer one began", "a late end of an older run does not lower the newest run seen" |
+| A stale token cannot end a newer run | Capture lifecycle: "a stale reconnect or error path cannot end a newer run" |
+| The retry count resets only after a stream stayed up for the healthy period | Capture lifecycle: "a stream that dies right after starting does not reset the count, so retries end", "a stream that stayed up for the healthy period starts counting from 1 again" |
+| Store transcript and final-ID memory are bounded; finals are immutable | CaptionStore: "history is bounded: the oldest finalized segments are dropped", "remembered final IDs are bounded too", "finalized segments are immutable: later finals and volatiles are ignored" |
+| The open phrase's start only moves back; the fallback start (`lastEnd`) only grows | SegmentTracker: "the open phrase's start follows the earliest volatile result", "a later volatile result with a later start does not move the open phrase's start forward", "a late final for an earlier phrase does not move the fallback start back" |
+| A volatile update one full interval after the last one is shown at once | CaptionUpdateThrottle: "a volatile update exactly one interval after the last one is shown at once" |
+| A timeline mismatch up to the tolerance is contiguous; output times never decrease | AudioTimeline: "a mismatch of exactly the tolerance is still contiguous", "output start times never decrease, whatever the input times" |
+
+Run the mutation check again when you change one of these types: mutate the
+line, wipe `.build` (incremental Linux builds can keep a stale object file),
+run `swift test --package-path Packages/Core`, and expect a failure.
+
 ## Build and CI
 
 - `make build` generates the project with XcodeGen and builds an ad-hoc signed

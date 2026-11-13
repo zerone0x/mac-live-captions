@@ -40,6 +40,16 @@ struct CaptionUpdateThrottleTests {
         #expect(throttle.pending == nil)
     }
 
+    @Test("a volatile update exactly one interval after the last one is shown at once")
+    func presentsAtIntervalBoundary() {
+        var throttle = CaptionUpdateThrottle(interval: 0.25)
+        let first = snapshot(volatileLine(1, "hello"))
+        #expect(throttle.submit(first, at: 10) == .presentNow(first))
+        let second = snapshot(volatileLine(1, "hello there"))
+        #expect(throttle.submit(second, at: 10.25) == .presentNow(second))
+        #expect(throttle.pending == nil)
+    }
+
     @Test("new finalized text is shown at once and drops the waiting volatile update")
     func finalsAreImmediate() {
         var throttle = CaptionUpdateThrottle(interval: 0.25)

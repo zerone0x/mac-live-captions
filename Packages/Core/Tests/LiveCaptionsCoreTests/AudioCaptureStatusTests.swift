@@ -43,6 +43,14 @@ struct AudioCaptureStatusTests {
         #expect(status == .capturing)
     }
 
+    @Test(
+        "a stream that dies while capturing shows 'reconnecting', even when nothing was playing",
+        arguments: [AudioCaptureStatus.starting, .capturing, .noAudio, .reconnecting(attempt: 1)]
+    )
+    func interruptionFromEveryActiveStatus(status: AudioCaptureStatus) {
+        #expect(status.applying(.interrupted(attempt: 2)) == .reconnecting(attempt: 2))
+    }
+
     @Test("a restarted stream clears 'No audio' (its silence monitor starts afresh)")
     func startedClearsNoAudio() {
         #expect(AudioCaptureStatus.noAudio.applying(.started) == .capturing)
