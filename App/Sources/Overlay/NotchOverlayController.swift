@@ -10,13 +10,19 @@ final class OverlayViewModel {
     var frame: CaptionFrame = .empty
     var style: OverlayStyle = .pill
     var metrics = OverlayMetrics()
+    var displayOptions = OverlayDisplayOptions.standard
 }
 
 private struct OverlayRootView: View {
     let model: OverlayViewModel
 
     var body: some View {
-        CaptionOverlayView(frame: model.frame, style: model.style, metrics: model.metrics)
+        CaptionOverlayView(
+            frame: model.frame,
+            style: model.style,
+            metrics: model.metrics,
+            displayOptions: model.displayOptions
+        )
     }
 }
 
@@ -32,6 +38,7 @@ final class NotchOverlayController: CaptionPresenter {
     private let model = OverlayViewModel()
     private var panel: OverlayPanel?
     private var screenObserver: (any NSObjectProtocol)?
+    private var displayOptionsObserver: (any NSObjectProtocol)?
     private var collapseTask: Task<Void, Never>?
     private var isShowing = false
     private let clockStart = ContinuousClock.now
@@ -127,6 +134,13 @@ final class NotchOverlayController: CaptionPresenter {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
+    private static var currentDisplayOptions: OverlayDisplayOptions {
+        OverlayDisplayOptions(
+            increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast,
+            reduceTransparency: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+        )
+    }
+
     // MARK: Panel and placement
 
     private func makePanelIfNeeded() -> OverlayPanel {
@@ -137,6 +151,18 @@ final class NotchOverlayController: CaptionPresenter {
         panel.contentView = hosting
         panel.sharingType = hidesFromScreenSharing ? .none : .readOnly
         self.panel = panel
+
+        // Increase Contrast / Reduce Transparency can change while the app
+        // runs; the SwiftUI environment of a hosting view in a non-activating
+        // panel is not guaranteed to follow, so read NSWorkspace as well.
+        model.displayOptions = Self.currentDisplayOptions
+        displayOptionsObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.model.displayOptions = Self.currentDisplayOptions }
+        }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,

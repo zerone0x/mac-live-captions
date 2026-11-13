@@ -21,7 +21,10 @@ struct LiveCaptionsApp: App {
             MenuContent(model: model)
         } label: {
             Image(systemName: Self.symbolName(for: model.status.indicator))
-                .accessibilityLabel("LiveCaptions: \(model.status.text)")
+                // The state is in the label (not only the icon shape) so
+                // VoiceOver says whether captions are on (DECISIONS 0018).
+                .accessibilityLabel(Text(model.status.accessibilityLabel))
+                .accessibilityValue(Text(model.status.accessibilityValue))
         }
 
         Window("Welcome to LiveCaptions", id: OnboardingView.windowID) {
