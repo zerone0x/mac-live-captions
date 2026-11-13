@@ -384,3 +384,25 @@ checklist. Mixing microphone captions in needs its own decision (per-origin
 lines or labels). The shortcut is fixed until a settings field for it is
 worth the complexity.
 
+## 0015: Carbon is allowed for the global shortcut
+
+2026-11-13 · #11
+
+**Context.** The ⌃⌥C shortcut (0014) uses `RegisterEventHotKey` from
+`Carbon.HIToolbox`, so the app links `Carbon.framework`. The linked-framework
+check (0012) allows only listed system frameworks, so the build failed it.
+The alternatives need more than this one key: a global `NSEvent` monitor
+needs the Accessibility permission and sees every key press, and a
+`CGEventTap` needs Input Monitoring.
+
+**Decision.** `Carbon` joins the allow-list in
+`scripts/check-linked-frameworks.sh`. The app uses only the hot-key part of
+HIToolbox (`InstallEventHandler`, `GetApplicationEventTarget`,
+`RegisterEventHotKey`); none of it is networking, and `RegisterEventHotKey`
+needs no permission and sees only the registered key combination. The
+self-test has a good fixture (`linked-frameworks/good/carbon-hotkey`) that
+links Carbon and imports these symbols, so the entry is tested.
+
+**Consequences.** The symbol check still covers whatever the app calls
+through Carbon; a networking symbol fails it like any other. If Apple removes
+`RegisterEventHotKey`, the shortcut needs a new decision.
