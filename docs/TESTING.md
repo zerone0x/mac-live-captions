@@ -31,6 +31,9 @@ removing it).
       start by themselves when it finishes.
 - [ ] Stop during the download: the session ends; the menu keeps showing the
       download until it is done.
+- [ ] If the download fails (for example with Wi-Fi off), the menu shows the
+      error and offers "Download English Speech Model" again, with or
+      without a session.
 
 ## Permission denied
 
