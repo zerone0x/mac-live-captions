@@ -166,6 +166,17 @@ struct CaptionComposerTests {
         #expect(composer.isExpanded(at: 21))
     }
 
+    @Test("text arriving exactly at the collapse deadline also starts on a fresh line")
+    func freshParagraphAtDeadline() {
+        var composer = CaptionComposer(configuration: .init(maxLines: 2, maxLineLength: 42, idleTimeout: 5))
+        composer.apply(CaptionSnapshot(lines: [finalLine(1, "Old sentence.")]), at: 0)
+        // At the deadline the overlay already counts as collapsed...
+        #expect(!composer.isExpanded(at: 5))
+        // ...so text at that instant must not reopen it with the old caption.
+        composer.apply(CaptionSnapshot(lines: [finalLine(1, "Old sentence."), volatileLine(2, "New")]), at: 5)
+        #expect(composer.frame.lines.map(\.text) == ["New"])
+    }
+
     @Test("an empty snapshot hides everything")
     func emptySnapshot() {
         var composer = CaptionComposer()

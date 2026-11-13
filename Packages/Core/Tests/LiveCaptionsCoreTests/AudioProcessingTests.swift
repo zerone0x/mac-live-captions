@@ -174,6 +174,22 @@ struct AudioProcessingTests {
         #expect(!monitor.isSilent)
     }
 
+    @Test("silence is reported on time when block times are summed with rounding drift")
+    func silenceWithSummedBlockTimes() {
+        var monitor = SilenceMonitor(timeout: 1)
+        monitor.reset(at: 0)
+        // Ten 0.1 s blocks added up give 0.9999999999999999, not 1.
+        var now = 0.0
+        var events: [AudioCaptureEvent?] = []
+        for _ in 1...10 {
+            now += 0.1
+            events.append(monitor.process(.silence, at: now))
+        }
+        #expect(now < 1)
+        #expect(events.last == .silenceDetected)
+        #expect(events.compactMap { $0 } == [.silenceDetected])
+    }
+
     @Test("a short pause does not count as no audio")
     func shortPause() {
         var monitor = SilenceMonitor(timeout: 5)
