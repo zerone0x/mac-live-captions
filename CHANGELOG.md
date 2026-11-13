@@ -22,7 +22,7 @@ at the notch, with speech recognition on device. The full scope is
 - **Captions at the notch**, in a click-through panel that never takes focus,
   or in a pill under the menu bar on displays without a notch. At most two
   lines; the live tail is lighter and may still change; the overlay collapses
-  after 6 seconds of silence.
+  after 6 seconds without new text.
 - **An honest status line** in the menu bar: checking or downloading the
   speech model, waiting for permission, starting, listening, no audio
   playing, reconnecting, stopping, or the error.
@@ -31,7 +31,9 @@ at the notch, with speech recognition on device. The full scope is
 - **Settings**: text size, top (notch) or bottom position, and "Hide overlay
   from screen sharing" (best effort).
 - **A welcome window** that walks through the speech model and the Screen &
-  System Audio Recording permission.
+  System Audio Recording permission. If the app relaunches while macOS is
+  still downloading the speech model, captions start by themselves once the
+  download finishes (#40); such a download shows no percentage.
 - **Debug items**: a scripted demo feed for the overlay and an audio capture
   test.
 
