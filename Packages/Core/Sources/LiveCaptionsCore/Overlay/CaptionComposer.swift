@@ -122,7 +122,7 @@ public struct CaptionComposer: Sendable {
         }
         // One volatile line at most: the newest one. Volatile lines of two
         // origins (system audio and microphone) are never joined, so their
-        // words cannot interleave (docs/DECISIONS.md, 0012).
+        // words cannot interleave (docs/DECISIONS.md, 0014).
         let volatileLine = snapshot.lines.last { !$0.isFinal && !committedIDs.contains($0.id) }
         let volatile = volatileLine.map { CaptionLineBreaker.pieces(of: $0.text, maxLineLength: width) } ?? []
         // Keep the ID set bounded: segments the store no longer reports are done.

@@ -12,7 +12,7 @@ public enum ListeningHealth: Sendable, Hashable {
 
 /// Lifecycle of a caption session (system audio → speech → overlay).
 ///
-/// Pure state machine (docs/DECISIONS.md, 0012): the app sends `SessionEvent`s
+/// Pure state machine (docs/DECISIONS.md, 0014): the app sends `SessionEvent`s
 /// and performs the `SessionEffect`s each transition asks for. The phase only
 /// says "listening" after the audio source has reported that capture started,
 /// never because Start was clicked.

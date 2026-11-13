@@ -1,7 +1,7 @@
 import Foundation
 
 /// Coalesces volatile caption updates so the overlay redraws at a readable
-/// pace (docs/DECISIONS.md, 0012).
+/// pace (docs/DECISIONS.md, 0014).
 ///
 /// - A snapshot with new finalized text, or an empty snapshot, is shown at
 ///   once.

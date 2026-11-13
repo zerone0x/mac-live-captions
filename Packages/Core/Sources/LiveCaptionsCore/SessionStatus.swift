@@ -3,7 +3,7 @@ import Foundation
 /// What the menu bar shows: one status line, the icon, and which actions make
 /// sense. Derived from the session phase, the speech model state and the
 /// debug capture test, so the menu never claims more than really runs
-/// (docs/DECISIONS.md, 0012).
+/// (docs/DECISIONS.md, 0014).
 public struct SessionStatus: Sendable, Hashable {
     /// Icon kind; the app maps it to an SF Symbol.
     public enum Indicator: Sendable, Hashable {

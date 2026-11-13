@@ -52,7 +52,7 @@ transcript keeps the newest `historyLimit` segments; the snapshot is the last
 ## Session
 
 `AppModel` sends `SessionEvent`s to `SessionPhase` and performs the
-`SessionEffect`s it returns (DECISIONS 0012):
+`SessionEffect`s it returns (DECISIONS 0014):
 
 ```
 idle ──Start──▶ checkingModel ──ready──▶ startingCapture ──capturing──▶ listening(hearing | noAudio | reconnecting)
@@ -104,11 +104,15 @@ Rules:
    renders state. Keep it small; it is only compiled in CI, not unit-tested.
 3. **Core imports Foundation only** (plus Observation/Synchronization if
    needed). No SwiftUI, AppKit, AVFoundation, ScreenCaptureKit or Speech.
-4. **No networking** in the packages or App. `make check-offline` fails the build if
-   `URLSession`, any `import Network` form, `NW*` types and similar appear;
-   `scripts/check-offline-selftest.sh` checks the check against fixtures in CI.
-   The only network use is the en-US speech model download, done by macOS
-   (`AssetInventory`) when the user clicks "Download English Speech Model".
+4. **No networking** in the packages or App (DECISIONS 0003, 0012).
+   `make check-offline` fails the build if networking APIs (`URLSession`,
+   `import Network`/`WebKit`, `nw_*`, sockets, `SFSpeechRecognizer`, remote URL
+   literals, `Process` and similar) or remote package dependencies appear;
+   `make check-linked-frameworks` checks the built binary's linked frameworks
+   and imported symbols. `scripts/check-offline-selftest.sh` checks all three
+   against fixtures. The only sanctioned network use is the system's speech
+   model download through `AssetInventory`, only when the user clicks
+   "Download English Speech Model".
 5. **Swift 6 language mode**, complete strict concurrency. Cross-stage data is
    `Sendable`; UI-facing types are `@MainActor`.
 
@@ -136,6 +140,7 @@ Rules:
   no `get-task-allow`, stripped binary) and zips the app. It is meant for
   Release builds; `scripts/verify-app-selftest.sh` checks that it rejects bad
   bundles.
-- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages) and `package` on a
+- `.github/workflows/ci.yml` runs `check-offline`, `test` (both packages), `package` and
+  `check-linked-frameworks` on a
   `macos-26` runner for every PR and push to `main`, and uploads the zip as a
   workflow artifact.

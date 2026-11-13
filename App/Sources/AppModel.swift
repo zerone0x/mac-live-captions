@@ -7,7 +7,7 @@ import Observation
 /// App-level state and the glue of the caption pipeline.
 ///
 /// The session transitions live in `SessionPhase` and the menu text in
-/// `SessionStatus` (both Core, docs/DECISIONS.md 0012). This class performs
+/// `SessionStatus` (both Core, docs/DECISIONS.md 0014). This class performs
 /// the effects: it checks and downloads the speech model, runs a
 /// `CaptionPipeline` (system audio → `SpeechAnalyzerTranscriber` → overlay)
 /// and feeds what happens back in as `SessionEvent`s.
@@ -178,7 +178,7 @@ final class AppModel {
         send(.modelStateChanged(state))
     }
 
-    /// System audio only (docs/DECISIONS.md, 0012). The microphone stays in
+    /// System audio only (docs/DECISIONS.md, 0014). The microphone stays in
     /// the debug capture test until two origins have a layout.
     private func startPipeline() {
         pipelineGeneration += 1
