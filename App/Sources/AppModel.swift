@@ -17,10 +17,20 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    private(set) var phase: SessionPhase = .idle
+    private(set) var phase: SessionPhase = .idle {
+        didSet { updateModelWatch() }
+    }
     /// The en-US speech model, tracked with or without a session.
-    private(set) var modelState: SpeechAssetState = .checking
-    private(set) var isDownloadingModel = false
+    private(set) var modelState: SpeechAssetState = .checking {
+        didSet { updateModelWatch() }
+    }
+    private(set) var isDownloadingModel = false {
+        didSet { updateModelWatch() }
+    }
+    /// Set by the welcome window while it is open; it shows the model state.
+    var isWelcomeWindowOpen = false {
+        didSet { updateModelWatch() }
+    }
 
     /// Debug-only audio capture check (#7), separate from the session but
     /// shown as listening while it runs (`SessionStatus`).
@@ -59,6 +69,11 @@ final class AppModel {
     /// are dropped.
     @ObservationIgnored private var pipelineGeneration = 0
     @ObservationIgnored private var installGeneration = 0
+    /// Re-reads the model state while a download this process does not
+    /// drive runs (`ModelStateWatch`, docs/DECISIONS.md 0021).
+    @ObservationIgnored private var modelWatchTask: Task<Void, Never>?
+    @ObservationIgnored private var modelWatchGeneration = 0
+    @ObservationIgnored private var terminateObserver: (any NSObjectProtocol)?
     @ObservationIgnored private var hotKey: GlobalHotKey?
 
     init() {
@@ -76,6 +91,12 @@ final class AppModel {
 
         // Reads the model state only; nothing is downloaded without a click.
         refreshModelState()
+
+        terminateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancelModelWatch() }
+        }
 
         if CommandLine.arguments.contains(Self.demoArgument) {
             // Give the app a moment to finish launching before the panel opens.
@@ -152,6 +173,58 @@ final class AppModel {
             guard let self, !self.isDownloadingModel else { return }
             self.modelStateChanged(state)
         }
+    }
+
+    // MARK: Model watch
+
+    /// Starts or stops re-reading the model state. Runs while the model
+    /// downloads, no `install` here reports on it (relaunch during the
+    /// download, or the system retrying after `install` returned) and a
+    /// session or the welcome window waits for it. Reads the local status
+    /// only; never downloads.
+    private func updateModelWatch() {
+        let needed = ModelStateWatch.shouldWatch(
+            model: modelState,
+            isInstalling: isDownloadingModel,
+            phase: phase,
+            isWelcomeWindowOpen: isWelcomeWindowOpen
+        )
+        if !needed {
+            cancelModelWatch()
+            return
+        }
+        guard modelWatchTask == nil else { return }
+        modelWatchGeneration += 1
+        let generation = modelWatchGeneration
+        let assets = self.assets
+        // The model lives as long as the app, so strong captures are fine.
+        modelWatchTask = Task {
+            await ModelStateWatch.run(assets: assets) { state in
+                await self.modelWatchRead(state, generation: generation)
+            }
+            self.modelWatchEnded(generation: generation)
+        }
+    }
+
+    /// One state read by the watch; returns whether to keep watching.
+    private func modelWatchRead(_ state: SpeechAssetState, generation: Int) -> Bool {
+        guard generation == modelWatchGeneration, !isDownloadingModel else { return false }
+        modelStateChanged(state)
+        return generation == modelWatchGeneration
+    }
+
+    private func modelWatchEnded(generation: Int) {
+        guard generation == modelWatchGeneration else { return }
+        modelWatchTask = nil
+        // The state may have changed while the last read ran.
+        updateModelWatch()
+    }
+
+    private func cancelModelWatch() {
+        guard let task = modelWatchTask else { return }
+        task.cancel()
+        modelWatchTask = nil
+        modelWatchGeneration += 1
     }
 
     private func send(_ event: SessionEvent) {
@@ -291,6 +364,7 @@ final class AppModel {
     func relaunch() {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        cancelModelWatch()
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in
             Task { @MainActor in NSApplication.shared.terminate(nil) }
         }
