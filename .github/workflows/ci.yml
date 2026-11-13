@@ -14,6 +14,21 @@ permissions:
   contents: read
 
 jobs:
+  # Fast feedback: Core is pure Swift and its tests run on Linux in about a
+  # minute. The macOS job below stays the gate for everything else.
+  core-linux:
+    name: Core tests (Linux, Swift 6.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: swift:6.3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Core tests
+        run: |
+          swift --version
+          swift test --package-path Packages/Core
+
   build-and-test:
     name: Build and test (macOS 26, Apple Silicon)
     runs-on: macos-26
@@ -21,24 +36,31 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Select Xcode 26
+      # Pinned, not "the newest Xcode_26*": the image's set changes with
+      # runner updates (docs/DECISIONS.md 0019). Missing means fail, so a
+      # bump is a reviewed change to this line.
+      - name: Select Xcode 26.6
         run: |
-          echo "Installed Xcode versions:"
-          ls -d /Applications/Xcode*.app || true
-          current="$(xcodebuild -version)"
-          if [[ "$current" != "Xcode 26"* ]]; then
-            xcode="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
-            echo "Switching to $xcode"
-            sudo xcode-select -s "$xcode"
+          xcode=/Applications/Xcode_26.6.app
+          if [[ ! -d "$xcode" ]]; then
+            echo "Installed Xcode versions:"
+            ls -d /Applications/Xcode*.app || true
+            echo "error: $xcode is missing on this runner image" >&2
+            exit 1
           fi
+          sudo xcode-select -s "$xcode"
           xcodebuild -version
           swift --version
           sw_vers
+          xcbeautify --version
 
       - name: Install XcodeGen
         run: |
           command -v xcodegen || brew install xcodegen
           xcodegen --version
+
+      - name: Check Swift formatting
+        run: make format-check
 
       - name: Check caption path stays offline
         run: make check-offline
@@ -52,8 +74,20 @@ jobs:
       - name: Self-test the app verifier
         run: scripts/verify-app-selftest.sh
 
+      # make build pipes xcodebuild into xcbeautify; prove that a failing
+      # xcodebuild still fails the target (pipefail).
+      - name: Self-test that a failing build fails through the log filter
+        run: |
+          if make build XCODEBUILD=false XCBEAUTIFY="xcbeautify --renderer github-actions"; then
+            echo "error: make build passed although xcodebuild failed" >&2
+            exit 1
+          fi
+          echo "ok: a failing xcodebuild fails make build"
+
+      # Warnings are errors here (SWIFT_TREAT_WARNINGS_AS_ERRORS in the
+      # Makefile; the packages set it in Package.swift).
       - name: Build, verify and package app
-        run: make package
+        run: make package WARNINGS_AS_ERRORS=YES XCBEAUTIFY="xcbeautify --renderer github-actions"
 
       - name: Check linked frameworks stay offline
         run: make check-linked-frameworks

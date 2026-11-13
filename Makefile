@@ -10,7 +10,24 @@ SHOTS    := build/screenshots
 REFS     := scripts/fixtures/screenshots
 LIVE     := build/live-screenshots
 
-.PHONY: all generate test test-core test-audio test-speech build package verify screenshots compare-screenshots record-screenshots live-screenshots check-offline check-linked-frameworks open clean
+# Recipes run in bash: `build` needs `set -o pipefail` so that a failing
+# xcodebuild still fails when piped into xcbeautify. (macOS ships GNU Make
+# 3.81, which ignores .SHELLFLAGS, so the recipe sets it itself.)
+SHELL := /bin/bash
+
+# CI swaps in `false` once to prove a failing build fails through the pipe.
+XCODEBUILD ?= xcodebuild
+# Warnings fail the app build (packages: Package.swift). Override with
+# WARNINGS_AS_ERRORS=NO only to look around; CI keeps YES.
+WARNINGS_AS_ERRORS ?= YES
+# Log filter for xcodebuild. CI uses `xcbeautify --renderer github-actions`
+# for PR annotations; `cat` keeps the raw log.
+XCBEAUTIFY ?= $(if $(shell command -v xcbeautify 2>/dev/null),xcbeautify,cat)
+# Swift sources that `make format`/`format-check` cover. Test fixtures in
+# scripts/fixtures are kept as they are on purpose.
+FORMAT_PATHS := App Packages scripts/compare-screenshots.swift scripts/screen-info.swift
+
+.PHONY: all generate test test-core test-audio test-speech build package verify screenshots compare-screenshots record-screenshots live-screenshots check-offline check-linked-frameworks format format-check open clean
 
 all: check-offline test build
 
@@ -37,13 +54,16 @@ test-speech:
 
 ## Build the ad-hoc signed app into build/DerivedData.
 build: generate
-	xcodebuild \
+	set -o pipefail; \
+	$(XCODEBUILD) \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-configuration $(CONFIG) \
 		-destination 'generic/platform=macOS' \
 		-derivedDataPath $(DERIVED) \
-		build
+		SWIFT_TREAT_WARNINGS_AS_ERRORS=$(WARNINGS_AS_ERRORS) \
+		build \
+		| $(XCBEAUTIFY)
 
 ## Zip the built app (keeps symlinks and signature intact).
 package: build verify
@@ -87,6 +107,15 @@ check-offline:
 ## After `make build`: fail if the binary links or calls networking APIs.
 check-linked-frameworks:
 	scripts/check-linked-frameworks.sh $(APP)
+
+## Reformat the Swift sources with swift-format (ships with the toolchain;
+## config in .swift-format).
+format:
+	swift format format --in-place --parallel --recursive $(FORMAT_PATHS)
+
+## Fail if a Swift source is not formatted (CI runs this).
+format-check:
+	swift format lint --strict --parallel --recursive $(FORMAT_PATHS)
 
 open: generate
 	open $(PROJECT)

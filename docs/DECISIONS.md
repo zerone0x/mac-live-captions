@@ -528,3 +528,42 @@ non-activating panel at all, and whether `MenuBarExtra` passes the label and
 value to the status item, can only be checked on a Mac (`docs/TESTING.md`,
 Accessibility). The notch style is opaque in every mode. The overlay's
 colours change only in `OverlayAppearance`, so the contrast test covers them.
+
+## 0019: CI quality gates: pinned Xcode, warnings as errors, swift-format
+
+2026-11-13 · #18
+
+**Context.** CI picked the newest `Xcode_26*` on the runner, so a runner
+image update could change the compiler under a PR without any change in the
+repository. Warnings did not fail anything, so they piled up unseen. There
+was no formatter, and xcodebuild's raw log buried errors.
+
+**Decision.**
+- CI selects `/Applications/Xcode_26.6.app` (Swift 6.3.3) and fails if it is
+  missing. Moving to another Xcode is a change to that line.
+- Warnings are errors. Every target in the three local packages has
+  `swiftSettings: [.treatAllWarnings(as: .error)]` (SwiftPM 6.2+, SE-0443;
+  checked against the Swift 6.3.3 toolchain: the compiler gets
+  `-warnings-as-errors`), and each package sets `swiftLanguageModes: [.v6]`
+  instead of relying on the tools version. `make build` passes
+  `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES` to xcodebuild (overridable locally
+  with `WARNINGS_AS_ERRORS=NO`; CI never overrides it).
+- swift-format, which ships with the Swift toolchain (no dependency to
+  install or pin), formats the code. `.swift-format` is the tool's default
+  configuration with 4-space indentation (the code's existing style) and a
+  120-column line length. `make format` rewrites, `make format-check` runs
+  `swift format lint --strict` in CI. The test fixtures in `scripts/fixtures`
+  are excluded: some are deliberately odd input for the offline checks.
+- `make build` pipes xcodebuild into xcbeautify (on the runner image; CI uses
+  `--renderer github-actions` so errors annotate the PR) with
+  `set -o pipefail` inside the recipe, because macOS's GNU Make 3.81 ignores
+  `.SHELLFLAGS`. A CI step runs `make build XCODEBUILD=false` and fails if
+  that passes, so the pipe cannot swallow a failed build.
+- A Linux job runs the Core tests in the `swift:6.3` container for fast
+  feedback. It does not replace the macOS job.
+
+**Consequences.** A new compiler warning, from our code or a new Xcode, fails
+the PR that brings it; fix the warning instead of turning the setting off.
+A formatting-only diff fails `format-check` until `make format` runs, which
+needs a Swift 6 toolchain (Xcode 26, or Linux). Updating Xcode means editing
+the pin in `.github/workflows/ci.yml` and this entry.
