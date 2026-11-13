@@ -6,14 +6,17 @@ import SwiftUI
 /// Settings window and a welcome window that opens on first launch.
 @main
 struct LiveCaptionsApp: App {
-    @State private var model = AppModel()
+    @State private var model: AppModel
 
     init() {
-        // CI hook: render overlay screenshots and quit (see `make screenshots`).
+        let model = AppModel()
+        // CI hook: render screenshots and quit (see `make screenshots`).
         if let directory = OverlaySnapshotRenderer.requestedDirectory() {
             let failures = OverlaySnapshotRenderer.render(to: directory)
+                + AppSnapshotRenderer.render(to: directory, model: model)
             exit(failures == 0 ? 0 : 1)
         }
+        _model = State(initialValue: model)
     }
 
     var body: some Scene {

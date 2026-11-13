@@ -7,8 +7,9 @@ DERIVED  := build/DerivedData
 APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
 SHOTS    := build/screenshots
+LIVE     := build/live-screenshots
 
-.PHONY: all generate test test-core test-audio test-speech build package verify screenshots check-offline check-linked-frameworks open clean
+.PHONY: all generate test test-core test-audio test-speech build package verify screenshots live-screenshots check-offline check-linked-frameworks open clean
 
 all: check-offline test build
 
@@ -54,10 +55,17 @@ package: build verify
 verify:
 	scripts/verify-app.sh $(APP)
 
-## Render overlay screenshots (PNG) with the built app; CI uploads them.
+## Render screenshots (PNG) with the built app: overlay states, menu states,
+## Settings and the welcome window. CI uploads them (docs/TESTING.md).
 screenshots:
 	rm -rf $(SHOTS)
 	$(APP)/Contents/MacOS/LiveCaptions --render-overlay-snapshots $(SHOTS)
+
+## Screenshots of the running app with the demo captions (needs a GUI session
+## and Screen Recording for the terminal; CI runners have both).
+live-screenshots:
+	rm -rf $(LIVE)
+	scripts/live-screenshots.sh $(APP) $(LIVE)
 
 ## Fail if networking APIs or remote dependencies appear (docs/DECISIONS.md 0003, 0012).
 check-offline:
