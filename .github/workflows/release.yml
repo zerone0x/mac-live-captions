@@ -1,0 +1,216 @@
+name: Release
+
+# A tag v<major>.<minor>.<patch> on main builds, checks and publishes a GitHub
+# Release with the zipped app and its SHA-256 file (docs/DECISIONS.md 0023).
+# workflow_dispatch, and PRs that change the release machinery, run the same
+# build and packaging as a dry run: they upload the files as a workflow
+# artifact and never create a Release.
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - scripts/release-*.sh
+      - CHANGELOG.md
+      - project.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to check the version against (default v<MARKETING_VERSION>). Dry run, nothing is published.
+        required: false
+        default: ''
+
+# Nothing by default; each job asks for what it needs.
+permissions: {}
+
+concurrency:
+  # Never cancel a running publish; a second run for the same ref waits.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and package (macOS 26, Apple Silicon)
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history and main, to check that a release tag is on main.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide the tag
+        id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT" == push ]]; then
+            [[ "$REF_TYPE" == tag ]] || { echo "error: push of $REF_TYPE $REF_NAME is not a tag" >&2; exit 1; }
+            tag="$REF_NAME"
+          elif [[ -n "${INPUT_TAG:-}" ]]; then
+            tag="$INPUT_TAG"
+          else
+            # Dry run: check against the version the project says it is.
+            marketing="$(sed -nE 's/^[[:space:]]+MARKETING_VERSION:[[:space:]]*"?([^"[:space:]#]*)"?.*$/\1/p' project.yml)"
+            [[ -n "$marketing" ]] || { echo "error: no MARKETING_VERSION in project.yml" >&2; exit 1; }
+            tag="v$marketing"
+          fi
+          # Fails unless the tag is v<major>.<minor>.<patch> and equals
+          # project.yml's MARKETING_VERSION.
+          version="$(scripts/release-version.sh "$tag")"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "Release $tag (version $version), event $EVENT"
+
+      - name: Check the tag is on main
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          commit="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "error: tag $TAG ($commit) is not on main; release only merged, CI-tested commits" >&2
+            exit 1
+          fi
+          echo "ok: $TAG ($commit) is on main"
+
+      # Same pin as ci.yml (docs/DECISIONS.md 0019).
+      - name: Select Xcode 26.6
+        run: |
+          xcode=/Applications/Xcode_26.6.app
+          if [[ ! -d "$xcode" ]]; then
+            echo "Installed Xcode versions:"
+            ls -d /Applications/Xcode*.app || true
+            echo "error: $xcode is missing on this runner image" >&2
+            exit 1
+          fi
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: Install XcodeGen
+        run: |
+          command -v xcodegen || brew install xcodegen
+          xcodegen --version
+
+      - name: Self-test the release checks
+        run: scripts/release-selftest.sh
+
+      - name: Self-test the app verifier
+        run: scripts/verify-app-selftest.sh
+
+      - name: Check caption path stays offline
+        run: make check-offline
+
+      - name: Package tests
+        run: make test
+
+      # make package = Release build (warnings are errors), then
+      # scripts/verify-app.sh: hardened runtime, exactly the audio-input
+      # entitlement (no get-task-allow), stripped, arm64.
+      - name: Build and verify Release app
+        run: make package CONFIG=Release WARNINGS_AS_ERRORS=YES XCBEAUTIFY="xcbeautify --renderer github-actions"
+
+      - name: Check linked frameworks stay offline
+        run: make check-linked-frameworks
+
+      - name: Check the built app's version
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: scripts/release-version.sh "$TAG" build/DerivedData/Build/Products/Release/LiveCaptions.app
+
+      # Zips with ditto, writes the .sha256 file, then unzips and re-runs
+      # verify-app, check-linked-frameworks and the version check on what a
+      # user gets.
+      - name: Zip and checksum
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release-package.sh "$VERSION" build/DerivedData/Build/Products/Release/LiveCaptions.app dist
+
+      - name: Write release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          scripts/release-notes.sh "$VERSION" "dist/LiveCaptions-$VERSION.zip.sha256" >dist/release-notes.md
+          {
+            echo "## Release notes for v$VERSION (event: $EVENT)"
+            echo
+            cat dist/release-notes.md
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ steps.version.outputs.tag }}
+          path: |
+            dist/LiveCaptions-${{ steps.version.outputs.version }}.zip
+            dist/LiveCaptions-${{ steps.version.outputs.version }}.zip.sha256
+            dist/release-notes.md
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    # Only a pushed tag publishes. workflow_dispatch and pull_request are dry
+    # runs and stop after the build job.
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release files
+        uses: actions/download-artifact@v7
+        with:
+          name: release-${{ needs.build.outputs.tag }}
+          path: dist
+
+      - name: Check the files and the checksum
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          zip="LiveCaptions-$VERSION.zip"
+          for f in "$zip" "$zip.sha256" release-notes.md; do
+            [[ -s "$f" ]] || { echo "error: missing or empty $f" >&2; exit 1; }
+          done
+          sha256sum -c "$zip.sha256"
+
+      # Fails if a Release for this tag already exists (no silent overwrite)
+      # and, with --verify-tag, if the tag is not on GitHub.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "LiveCaptions $VERSION" \
+            --notes-file release-notes.md \
+            "LiveCaptions-$VERSION.zip" \
+            "LiveCaptions-$VERSION.zip.sha256"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets \
+            --jq '.url, (.assets[] | "\(.name) \(.size)")'

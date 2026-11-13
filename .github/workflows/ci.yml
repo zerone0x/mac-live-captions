@@ -74,6 +74,10 @@ jobs:
       - name: Self-test the app verifier
         run: scripts/verify-app-selftest.sh
 
+      # Also fails if project.yml's version has no CHANGELOG.md section.
+      - name: Self-test the release checks
+        run: scripts/release-selftest.sh
+
       # make build pipes xcodebuild into xcbeautify; prove that a failing
       # xcodebuild still fails the target (pipefail).
       - name: Self-test that a failing build fails through the log filter

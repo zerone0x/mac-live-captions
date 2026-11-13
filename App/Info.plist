@@ -29,7 +29,7 @@
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>LiveCaptions listens to audio played by your Mac to show live captions. Audio is processed on this Mac and is never recorded or sent anywhere.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>LiveCaptions can caption your own voice when you turn on the microphone. Audio is processed on this Mac and is never recorded or sent anywhere.</string>
+	<string>LiveCaptions uses the microphone only for its audio capture test (Debug: Audio Capture). It does not caption the microphone yet. Audio is processed on this Mac and is never recorded or sent anywhere.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>LiveCaptions turns speech into text with Apple's on-device speech recognition. Nothing is sent off this Mac.</string>
 </dict>
