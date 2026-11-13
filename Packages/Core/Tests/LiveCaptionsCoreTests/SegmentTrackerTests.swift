@@ -1,8 +1,10 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
-private func phrase(_ text: String, _ start: TimeInterval, _ end: TimeInterval, final: Bool = false) -> RecognizedPhrase {
+private func phrase(_ text: String, _ start: TimeInterval, _ end: TimeInterval, final: Bool = false) -> RecognizedPhrase
+{
     RecognizedPhrase(text: text, start: start, end: end, isFinal: final)
 }
 
@@ -102,7 +104,8 @@ struct SegmentTrackerTests {
         let open = try #require(result16)
         let result17 = tracker.event(for: phrase("", 1, 2))
         let cleared = try #require(result17)
-        #expect(cleared == .volatile(TranscriptSegment(id: open.segment.id, text: "", start: 1, end: 2, origin: .system)))
+        #expect(
+            cleared == .volatile(TranscriptSegment(id: open.segment.id, text: "", start: 1, end: 2, origin: .system)))
         #expect(tracker.openSegmentID == open.segment.id)
 
         let result18 = tracker.event(for: phrase(" ", 1, 2, final: true))

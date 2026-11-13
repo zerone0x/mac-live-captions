@@ -18,9 +18,11 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Welcome to LiveCaptions")
                     .font(.title2.bold())
-                Text("Live English captions for the audio your Mac plays, shown at the notch. Speech recognition runs on this Mac; audio and transcripts are never saved.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Live English captions for the audio your Mac plays, shown at the notch. Speech recognition runs on this Mac; audio and transcripts are never saved."
+                )
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             step(number: 1, title: "English speech model", done: model.modelState.isReady) {
@@ -39,12 +41,16 @@ struct OnboardingView: View {
                 if hasPermission {
                     Text("Allowed. LiveCaptions only listens while captions are on.")
                 } else {
-                    Text("LiveCaptions needs this permission to hear the audio your Mac plays. It does not record your screen.")
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Turn on LiveCaptions in System Settings > Privacy & Security > Screen & System Audio Recording, then relaunch the app.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "LiveCaptions needs this permission to hear the audio your Mac plays. It does not record your screen."
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "Turn on LiveCaptions in System Settings > Privacy & Security > Screen & System Audio Recording, then relaunch the app."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     HStack {
                         Button("Ask for Permission") { requestPermission() }
                         Button("Open Privacy Settings…") { model.openPrivacySettings() }
@@ -54,8 +60,10 @@ struct OnboardingView: View {
             }
 
             step(number: 3, title: "Start captions", done: model.phase.isCapturing) {
-                Text("Play a video or join a call; captions appear \(captionLocation). Start and stop from the menu bar or with \(GlobalHotKey.displayName) from any app.")
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Play a video or join a call; captions appear \(captionLocation). Start and stop from the menu bar or with \(GlobalHotKey.displayName) from any app."
+                )
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack {

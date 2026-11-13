@@ -11,7 +11,9 @@ struct CaptureDebugMenu: View {
             Text(probe.status.statusText)
             if probe.isRunning {
                 Text("Level \(probe.meterText)")
-                Text("Captured \(probe.capturedSeconds.formatted(.number.precision(.fractionLength(1)))) s (\(probe.chunkCount) chunks)")
+                Text(
+                    "Captured \(probe.capturedSeconds.formatted(.number.precision(.fractionLength(1)))) s (\(probe.chunkCount) chunks)"
+                )
                 Button("Stop Capture Test") { probe.stop() }
             } else {
                 Button("Test System Audio Capture") { probe.start(.system) }

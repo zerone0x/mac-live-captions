@@ -1,6 +1,7 @@
 import Foundation
 import Synchronization
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("Capture lifecycle")
@@ -77,12 +78,13 @@ struct CaptureLifecycleTests {
                 tracker.streamStarted(at: now)
             }
         }
-        #expect(decisions == [
-            .retry(attempt: 1, delay: 2),
-            .retry(attempt: 2, delay: 4),
-            .retry(attempt: 3, delay: 8),
-            .giveUp(attempts: 3),
-        ])
+        #expect(
+            decisions == [
+                .retry(attempt: 1, delay: 2),
+                .retry(attempt: 2, delay: 4),
+                .retry(attempt: 3, delay: 8),
+                .giveUp(attempts: 3),
+            ])
     }
 
     @Test("a stream that stayed up for the healthy period starts counting from 1 again")

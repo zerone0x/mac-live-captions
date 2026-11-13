@@ -1,4 +1,5 @@
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("SessionStatus (menu bar)")
@@ -14,7 +15,10 @@ struct SessionStatusTests {
             (.checkingModel, "Checking English speech model…", .busy),
             (.waitingForModel(.notInstalled), "Waiting for the English speech model", .attention),
             (.waitingForModel(.downloading(fractionCompleted: 0.42)), "Downloading English speech model (42%)…", .busy),
-            (.waitingForModel(.unsupported), "On-device English speech recognition is not supported on this Mac", .attention),
+            (
+                .waitingForModel(.unsupported), "On-device English speech recognition is not supported on this Mac",
+                .attention
+            ),
             (.waitingForModel(.failed(message: "offline")), "Speech model error: offline", .attention),
             (.startingCapture, "Starting audio capture…", .busy),
             (.listening(.hearing), "Listening", .listening),
@@ -85,7 +89,8 @@ struct SessionStatusTests {
         #expect(status.text == "Not listening")
         #expect(status.detail == "Speech model error: offline")
         #expect(status.indicator == .off)
-        let waiting = SessionStatus(phase: .waitingForModel(.failed(message: "offline")), model: .failed(message: "offline"))
+        let waiting = SessionStatus(
+            phase: .waitingForModel(.failed(message: "offline")), model: .failed(message: "offline"))
         #expect(waiting.offersModelDownload)
     }
 

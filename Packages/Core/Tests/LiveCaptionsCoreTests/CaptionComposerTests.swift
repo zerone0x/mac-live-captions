@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 /// Deterministic segment IDs for readable tests.
@@ -47,7 +48,8 @@ func layoutViolations(
         // Lines never scroll back down past what was already on top, unless all
         // the text above went away.
         if let oldTop = previous.lines.first?.id, let newTop = current.lines.first?.id,
-           newTop < oldTop, current.lines.last.map({ $0.id >= oldTop }) == true {
+            newTop < oldTop, current.lines.last.map({ $0.id >= oldTop }) == true
+        {
             problems.append("scrolled back from line \(oldTop) to \(newTop)")
         }
     }
@@ -60,9 +62,10 @@ struct CaptionComposerTests {
     func finalThenVolatile() {
         var composer = CaptionComposer()
         composer.apply(CaptionSnapshot(lines: [finalLine(1, "Hello there."), volatileLine(2, "How are")]), at: 0)
-        #expect(composer.frame.lines == [
-            CaptionDisplayLine(id: 0, finalText: "Hello there.", volatileText: " How are"),
-        ])
+        #expect(
+            composer.frame.lines == [
+                CaptionDisplayLine(id: 0, finalText: "Hello there.", volatileText: " How are")
+            ])
         #expect(composer.frame.lines[0].text == "Hello there. How are")
     }
 
@@ -92,7 +95,8 @@ struct CaptionComposerTests {
         var composer = CaptionComposer()
         composer.apply(CaptionSnapshot(lines: [finalLine(1, "One.")]), at: 0)
         composer.apply(CaptionSnapshot(lines: [finalLine(1, "One."), finalLine(2, "Two.")]), at: 1)
-        composer.apply(CaptionSnapshot(lines: [finalLine(1, "One."), finalLine(2, "Two."), volatileLine(3, "Three")]), at: 2)
+        composer.apply(
+            CaptionSnapshot(lines: [finalLine(1, "One."), finalLine(2, "Two."), volatileLine(3, "Three")]), at: 2)
         #expect(composer.frame.lines.map(\.text) == ["One. Two. Three"])
     }
 
@@ -118,10 +122,11 @@ struct CaptionComposerTests {
     func noScrollBack() {
         var composer = CaptionComposer()
         let first = String(repeating: "a", count: 40)
-        composer.apply(CaptionSnapshot(lines: [
-            finalLine(1, first),
-            volatileLine(2, "bbbbbbbbbbbbbbbbbbbb cccccccccccccccccccc dddddddddddddddddddd eeeeeeeeeeeeeeeeeeee"),
-        ]), at: 0)
+        composer.apply(
+            CaptionSnapshot(lines: [
+                finalLine(1, first),
+                volatileLine(2, "bbbbbbbbbbbbbbbbbbbb cccccccccccccccccccc dddddddddddddddddddd eeeeeeeeeeeeeeeeeeee"),
+            ]), at: 0)
         #expect(composer.frame.lines.map(\.id) == [1, 2])
 
         composer.apply(CaptionSnapshot(lines: [finalLine(1, first), volatileLine(2, "bbbbbbbbbbbbbbbbbbbb")]), at: 1)
@@ -216,7 +221,8 @@ struct CaptionComposerTests {
             let earlier = (max(1, sentence - 2)..<sentence).map { finalLine($0, "Sentence \($0) is finished now.") }
             for revision in revisions {
                 time += 0.3
-                let frame = composer.apply(CaptionSnapshot(lines: earlier + [volatileLine(sentence, revision)]), at: time)
+                let frame = composer.apply(
+                    CaptionSnapshot(lines: earlier + [volatileLine(sentence, revision)]), at: time)
                 #expect(layoutViolations(previous: previous, current: frame).isEmpty)
                 previous = frame
             }
@@ -261,7 +267,8 @@ struct CaptionComposerTests {
         for sentence in 1...2_000 {
             let earlier = (max(1, sentence - 2)..<sentence).map { finalLine($0, "Sentence \($0) is finished now.") }
             time += 0.3
-            composer.apply(CaptionSnapshot(lines: earlier + [volatileLine(sentence, "Sentence \(sentence) is")]), at: time)
+            composer.apply(
+                CaptionSnapshot(lines: earlier + [volatileLine(sentence, "Sentence \(sentence) is")]), at: time)
             time += 0.3
             let frame = composer.apply(
                 CaptionSnapshot(lines: earlier + [finalLine(sentence, "Sentence \(sentence) is finished now.")]),

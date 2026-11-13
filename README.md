@@ -83,7 +83,7 @@ The manual test checklist for a real Mac is [docs/TESTING.md](docs/TESTING.md).
 
 ## Build locally
 
-Needs Xcode 26 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+Needs Xcode 26 (CI pins 26.6, Swift 6.3) and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
 brew install xcodegen
@@ -104,12 +104,14 @@ the project file. CI runs the same targets (`.github/workflows/ci.yml`).
 | `make test-core` | Core logic tests. Pure Swift, no hardware. |
 | `make test-audio` | AudioAdapter tests: PCM conversion with AVFoundation, no capture hardware. |
 | `make test-speech` | SpeechAdapter tests. The real-audio test needs `say` and the en-US speech model; it skips with a printed reason when they are missing, and `LIVECAPTIONS_SKIP_REAL_AUDIO=1` skips it on purpose. |
-| `make build` | `generate`, then build the ad-hoc signed app into `build/DerivedData`. |
+| `make build` | `generate`, then build the ad-hoc signed app into `build/DerivedData`. Warnings are errors (`WARNINGS_AS_ERRORS=NO` turns that off locally); the log goes through `xcbeautify` when it is installed. |
 | `make verify` | Check the built bundle with `scripts/verify-app.sh`: menu-bar only, usage strings, arm64, signature with hardened runtime and exactly the expected entitlements, stripped binary. |
 | `make package` | `build` and `verify`, then zip the app to `build/LiveCaptions.zip`. |
 | `make screenshots` | After a build: render the overlay states to PNG files in `build/screenshots` (the app's `--render-overlay-snapshots` mode). CI uploads them as `overlay-screenshots-<sha>`. |
 | `make check-offline` | Fail if networking APIs appear in the sources or remote dependencies in the package manifests (`scripts/check-offline.sh`, `scripts/check-dependencies.sh`). |
 | `make check-linked-frameworks` | After a build: fail if the binary links a framework outside the allow-list or imports networking symbols (`scripts/check-linked-frameworks.sh`). |
+| `make format` | Reformat the Swift sources with swift-format (part of the Swift toolchain; config in `.swift-format`). |
+| `make format-check` | Fail if a Swift source is not formatted (`swift format lint --strict`). CI runs it. |
 | `make open` | `generate`, then open the project in Xcode. |
 | `make clean` | Remove `build/` and the generated project. |
 

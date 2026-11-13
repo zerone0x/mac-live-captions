@@ -93,7 +93,9 @@ public struct SegmentTracker: Sendable {
         lastEnd = 0
     }
 
-    private func segment(_ id: SegmentID, _ text: String, _ start: TimeInterval, _ end: TimeInterval) -> TranscriptSegment {
+    private func segment(_ id: SegmentID, _ text: String, _ start: TimeInterval, _ end: TimeInterval)
+        -> TranscriptSegment
+    {
         TranscriptSegment(id: id, text: text, start: start, end: end, origin: origin)
     }
 

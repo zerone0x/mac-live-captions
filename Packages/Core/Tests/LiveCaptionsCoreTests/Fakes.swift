@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import LiveCaptionsCore
 
 // Test doubles for the pipeline protocols. Later waves reuse these (or move

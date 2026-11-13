@@ -2,8 +2,8 @@
 // https://github.com/ShinoKana/audicap
 // Copyright (c) 2026 ShinoKana. MIT License, see THIRD_PARTY_NOTICES.md.
 
-import AudioToolbox
 import AVFoundation
+import AudioToolbox
 import CoreAudio
 import Foundation
 import LiveCaptionsAudio
@@ -87,7 +87,8 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
         } catch is StaleRun {
             return chunks
         } catch {
-            let captureError = (error as? AudioCaptureError)
+            let captureError =
+                (error as? AudioCaptureError)
                 ?? .unavailable("Could not start the microphone: \(error.localizedDescription)")
             guard finish(run, throwing: captureError) else { return chunks }
             throw captureError
@@ -103,7 +104,8 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
     /// Stops `target`, or whichever run is active if `target` is `nil`. A consumer
     /// that cancels its chunk stream stops only its own run, never a newer one.
     private func stop(only target: CaptureToken?) async {
-        let taken = lock.withLock { () -> (CaptureToken, Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
+        let taken = lock.withLock {
+            () -> (CaptureToken, Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
             let ended: CaptureToken?
             if let target {
                 ended = runs.end(target) ? target : nil
@@ -242,8 +244,8 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
         processingQueue.sync {
             // A tap of a stopped run's engine may still fire once or twice.
             guard let continuation = lock.withLock({ runs.isCurrent(run) ? self.continuation : nil }),
-                  let samples = try? converter.convert(buffer),
-                  !samples.isEmpty
+                let samples = try? converter.convert(buffer),
+                !samples.isEmpty
             else { return }
             let chunks = assembler.append(samples)
             let silenceEvent = silence.process(AudioLevel(samples: samples), at: Self.now)

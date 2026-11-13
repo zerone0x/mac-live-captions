@@ -345,7 +345,8 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
         }
         let nsError = error as NSError
         if nsError.domain == SCStreamErrorDomain,
-           nsError.code == SCStreamError.Code.userDeclined.rawValue {
+            nsError.code == SCStreamError.Code.userDeclined.rawValue
+        {
             return .permissionDenied(.system)
         }
         return .unavailable(nsError.localizedDescription)
@@ -404,7 +405,9 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
         }
     }
 
-    private static func removeDeviceListener(_ listener: @escaping AudioObjectPropertyListenerBlock, queue: DispatchQueue) {
+    private static func removeDeviceListener(
+        _ listener: @escaping AudioObjectPropertyListenerBlock, queue: DispatchQueue
+    ) {
         var address = defaultOutputDeviceAddress
         AudioObjectRemovePropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &address, queue, listener
@@ -452,9 +455,9 @@ extension SystemAudioSource: SCStreamOutput, SCStreamDelegate {
             return (run, self.continuation)
         }
         guard let current,
-              let buffer = makePCMBuffer(from: sampleBuffer),
-              let samples = try? converter.convert(buffer),
-              !samples.isEmpty
+            let buffer = makePCMBuffer(from: sampleBuffer),
+            let samples = try? converter.convert(buffer),
+            !samples.isEmpty
         else { return }
         let (run, continuation) = current
 

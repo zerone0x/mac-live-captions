@@ -73,19 +73,19 @@ public enum AudioCaptureStatus: Sendable, Hashable {
         case (.noAudio, .soundDetected):
             .capturing
         case (.starting, .interrupted(let attempt)),
-             (.capturing, .interrupted(let attempt)),
-             (.noAudio, .interrupted(let attempt)),
-             (.reconnecting, .interrupted(let attempt)):
+            (.capturing, .interrupted(let attempt)),
+            (.noAudio, .interrupted(let attempt)),
+            (.reconnecting, .interrupted(let attempt)):
             .reconnecting(attempt: attempt)
         case (.starting, .permissionDenied(let origin)),
-             (.capturing, .permissionDenied(let origin)),
-             (.noAudio, .permissionDenied(let origin)),
-             (.reconnecting, .permissionDenied(let origin)):
+            (.capturing, .permissionDenied(let origin)),
+            (.noAudio, .permissionDenied(let origin)),
+            (.reconnecting, .permissionDenied(let origin)):
             .permissionDenied(origin)
         case (.starting, .failed(let message)),
-             (.capturing, .failed(let message)),
-             (.noAudio, .failed(let message)),
-             (.reconnecting, .failed(let message)):
+            (.capturing, .failed(let message)),
+            (.noAudio, .failed(let message)),
+            (.reconnecting, .failed(let message)):
             .failed(message: message)
         default:
             self

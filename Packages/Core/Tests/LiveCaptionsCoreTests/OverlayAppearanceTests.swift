@@ -1,4 +1,5 @@
 import Testing
+
 @testable import LiveCaptionsCore
 
 /// Contrast of the caption overlay (docs/DECISIONS.md, 0018). Pure colour

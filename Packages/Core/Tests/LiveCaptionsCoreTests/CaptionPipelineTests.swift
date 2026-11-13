@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 private func volatileEvent(_ number: Int, _ text: String) -> TranscriptEvent {

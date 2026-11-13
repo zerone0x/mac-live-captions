@@ -1,12 +1,14 @@
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("Caption line breaker")
 struct CaptionLineBreakerTests {
     @Test("wraps greedily at word boundaries")
     func greedyWrap() {
-        #expect(CaptionLineBreaker.wrap("the quick brown fox jumps", maxLineLength: 10)
-            == ["the quick", "brown fox", "jumps"])
+        #expect(
+            CaptionLineBreaker.wrap("the quick brown fox jumps", maxLineLength: 10)
+                == ["the quick", "brown fox", "jumps"])
     }
 
     @Test("a line may be exactly the budget, never longer")

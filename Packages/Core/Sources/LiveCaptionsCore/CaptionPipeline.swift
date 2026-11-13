@@ -116,9 +116,10 @@ public final class CaptionPipeline {
             let start = ContinuousClock.now
             self.now = { Self.seconds(ContinuousClock.now - start) }
         }
-        self.sleep = sleep ?? { seconds in
-            try? await Task.sleep(for: .seconds(seconds))
-        }
+        self.sleep =
+            sleep ?? { seconds in
+                try? await Task.sleep(for: .seconds(seconds))
+            }
     }
 
     /// The finalized transcript of this session, in memory only.
