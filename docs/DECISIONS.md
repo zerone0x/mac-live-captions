@@ -567,3 +567,47 @@ the PR that brings it; fix the warning instead of turning the setting off.
 A formatting-only diff fails `format-check` until `make format` runs, which
 needs a Swift 6 toolchain (Xcode 26, or Linux). Updating Xcode means editing
 the pin in `.github/workflows/ci.yml` and this entry.
+
+## 0023: Releases: tag-driven workflow, ad-hoc signed zip with a checksum
+
+2026-11-13 · #12
+
+**Context.** The owner installs the app from CI artifacts, which expire after
+14 days, have no version, and come wrapped in a second zip. There is no Apple
+Developer ID, so the app cannot be signed with a team or notarized (0004).
+The app still called itself 0.0.1.
+
+**Decision.**
+- A pushed tag `v<major>.<minor>.<patch>` runs `.github/workflows/release.yml`.
+  The build job (macOS 26, Xcode 26.6 as in 0019, `contents: read`) fails
+  unless the tag equals `MARKETING_VERSION` in `project.yml`
+  (`scripts/release-version.sh`) and the tagged commit is on `main`. It runs
+  the offline checks and package tests, `make package` (Release, warnings as
+  errors, `scripts/verify-app.sh`) and `make check-linked-frameworks`, then
+  checks the built app's `CFBundleShortVersionString` and `CFBundleVersion`.
+- `scripts/release-package.sh` zips the app with
+  `ditto -c -k --sequesterRsrc --keepParent` to `LiveCaptions-<version>.zip`,
+  writes `LiveCaptions-<version>.zip.sha256` (`shasum -a 256` format), unzips
+  the zip again and re-runs the bundle, framework and version checks on what
+  a user gets.
+- The release notes are the version's `## [<version>]` section of
+  `CHANGELOG.md` plus install steps and the checksum
+  (`scripts/release-notes.sh`). A missing, duplicated or empty section fails.
+- Only the publish job has `contents: write`. It runs only for a pushed tag,
+  re-checks the checksum and runs `gh release create --verify-tag`, which
+  fails if a Release for the tag already exists, so nothing is overwritten.
+- `workflow_dispatch`, and PRs that change the release workflow, the release
+  scripts, `CHANGELOG.md` or `project.yml`, run the build job as a dry run:
+  the files are uploaded as a workflow artifact and no Release is created.
+- `scripts/release-selftest.sh` (in CI and in the release workflow) checks
+  that each rule fails for the wrong input, and that the version in
+  `project.yml` has a `CHANGELOG.md` section.
+- Releases stay ad-hoc signed and not notarized. This replaces the line in
+  0004 that real signing and notarization come with #12: they need an Apple
+  Developer ID first and get their own decision.
+
+**Consequences.** A version bump is a PR that changes `project.yml` and
+`CHANGELOG.md` together; the tag is pushed after it merges. Users clear the
+quarantine flag with `xattr` (README, Install), and macOS may ask for
+permissions again after each update because the ad-hoc signature changes. Tags
+with a suffix (`v0.2.0-rc1`) are rejected until a decision allows them.
