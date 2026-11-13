@@ -9,18 +9,20 @@ import SwiftUI
 final class OverlayViewModel {
     var frame: CaptionFrame = .empty
     var style: OverlayStyle = .pill
+    var metrics = OverlayMetrics()
 }
 
 private struct OverlayRootView: View {
     let model: OverlayViewModel
 
     var body: some View {
-        CaptionOverlayView(frame: model.frame, style: model.style)
+        CaptionOverlayView(frame: model.frame, style: model.style, metrics: model.metrics)
     }
 }
 
 /// Shows caption snapshots in a panel at the notch of the menu-bar screen
-/// (or as a pill on displays without a notch) and hides it when idle.
+/// (or as a pill on displays without a notch, or near the bottom of the
+/// screen when the user picks that position) and hides it when idle.
 ///
 /// Layout and timing decisions come from `CaptionComposer` and
 /// `OverlayPlacement` in Core; this class only drives AppKit.
@@ -40,6 +42,23 @@ final class NotchOverlayController: CaptionPresenter {
     /// of the whole screen is the reliable way to keep captions private.
     var hidesFromScreenSharing = false {
         didSet { panel?.sharingType = hidesFromScreenSharing ? .none : .readOnly }
+    }
+
+    /// Caption text size (Settings).
+    var fontSize: CaptionFontSize = .default {
+        didSet {
+            guard fontSize != oldValue else { return }
+            model.metrics = OverlayMetrics(fontSize: fontSize)
+            reposition()
+        }
+    }
+
+    /// Top (notch) or bottom of the screen (Settings).
+    var position: OverlayPosition = .default {
+        didSet {
+            guard position != oldValue else { return }
+            reposition()
+        }
     }
 
     init() {}
@@ -141,11 +160,12 @@ final class NotchOverlayController: CaptionPresenter {
             auxiliaryTopLeftArea: screen.auxiliaryTopLeftArea.map { OverlayRect($0) },
             auxiliaryTopRightArea: screen.auxiliaryTopRightArea.map { OverlayRect($0) }
         )
-        let caption = OverlayMetrics.captionSize(maxLines: composer.configuration.maxLines)
+        let caption = model.metrics.captionSize(maxLines: composer.configuration.maxLines)
         let placement = OverlayPlacement.place(
             captionWidth: Double(caption.width),
             captionHeight: Double(caption.height),
-            on: geometry
+            on: geometry,
+            position: position
         )
         if model.style != placement.style {
             model.style = placement.style

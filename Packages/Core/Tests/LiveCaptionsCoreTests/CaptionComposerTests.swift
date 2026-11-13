@@ -218,4 +218,25 @@ struct CaptionComposerTests {
             previous = frame
         }
     }
+
+    @Test("volatile lines of two origins are never joined into one tail")
+    func volatileOriginsDoNotInterleave() {
+        var composer = CaptionComposer()
+        let system = CaptionLine(id: segmentID(1), text: "the meeting starts", origin: .system, isFinal: false)
+        let microphone = CaptionLine(id: segmentID(2), text: "can you hear", origin: .microphone, isFinal: false)
+        let frame = composer.apply(CaptionSnapshot(lines: [system, microphone]), at: 0)
+        let text = frame.lines.map(\.text).joined(separator: " ")
+        #expect(text == "can you hear")
+        #expect(!text.contains("meeting"))
+    }
+
+    @Test("finals still show when the volatile line comes from another origin")
+    func finalsWithForeignVolatile() {
+        var composer = CaptionComposer()
+        let final = CaptionLine(id: segmentID(1), text: "Hello there.", origin: .system, isFinal: true)
+        let microphone = CaptionLine(id: segmentID(2), text: "hi", origin: .microphone, isFinal: false)
+        let frame = composer.apply(CaptionSnapshot(lines: [final, microphone]), at: 0)
+        #expect(frame.lines.map(\.text) == ["Hello there. hi"])
+        #expect(frame.lines.first?.finalText == "Hello there.")
+    }
 }

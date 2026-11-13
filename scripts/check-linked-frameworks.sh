@@ -21,12 +21,14 @@ set -euo pipefail
 
 usage() { echo "usage: check-linked-frameworks.sh APP|BINARY | --libs FILE [--symbols FILE]" >&2; exit 2; }
 
-# Frameworks the app may link (system frameworks only).
+# Frameworks the app may link (system frameworks only). Carbon is here for
+# the global shortcut's RegisterEventHotKey (DECISIONS 0015).
 allowed_frameworks=(
   AppKit
   AudioToolbox
   AVFAudio
   AVFoundation
+  Carbon
   Combine
   CoreAudio
   CoreFoundation

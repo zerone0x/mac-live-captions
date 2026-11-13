@@ -27,9 +27,26 @@ enum OverlaySnapshotRenderer {
         var failures = stateNames.count - frames.count
         if failures > 0 { print("missing overlay states: \(failures)") }
         for (name, frame) in frames {
-            for (styleName, style) in [("notch", notch), ("pill", OverlayStyle.pill)] {
-                let url = directory.appendingPathComponent("overlay-\(styleName)-\(name).png")
-                if write(scene(frame: frame, style: style), to: url) {
+            // Every state at the default size; the wrap state also at the
+            // largest size from Settings, to check that the panel grows with it.
+            var sizes: [(prefix: String, size: CaptionFontSize)] = [("", .default)]
+            if name == largeFontState { sizes.append(("xl-", .extraLarge)) }
+            for (prefix, size) in sizes {
+                for (styleName, style) in [("notch", notch), ("pill", OverlayStyle.pill)] {
+                    let url = directory.appendingPathComponent("overlay-\(styleName)-\(prefix)\(name).png")
+                    let metrics = OverlayMetrics(fontSize: size)
+                    if write(scene(frame: frame, style: style, metrics: metrics), to: url) {
+                        print("rendered \(url.path)")
+                    } else {
+                        print("failed to render \(url.path)")
+                        failures += 1
+                    }
+                }
+            }
+            // The bottom position (Settings) for the wrap state.
+            if name == largeFontState {
+                let url = directory.appendingPathComponent("overlay-bottom-\(name).png")
+                if write(bottomScene(frame: frame, metrics: OverlayMetrics(fontSize: .default)), to: url) {
                     print("rendered \(url.path)")
                 } else {
                     print("failed to render \(url.path)")
@@ -44,6 +61,9 @@ enum OverlaySnapshotRenderer {
     /// one finalized line, finalized text plus a volatile tail, a two-line wrap
     /// with a volatile tail, and two finalized lines.
     static let stateNames = ["1-final-line", "2-final-plus-volatile", "3-two-line-wrap-volatile", "4-two-line-final"]
+
+    /// Also rendered with the extra large font (`overlay-*-xl-<state>.png`).
+    static let largeFontState = "3-two-line-wrap-volatile"
 
     private static func demoFrames() -> [(String, CaptionFrame)] {
         var composer = CaptionComposer()
@@ -72,11 +92,11 @@ enum OverlaySnapshotRenderer {
 
     /// The overlay on a strip of fake desktop with a menu bar, at the size the
     /// panel would have.
-    private static func scene(frame: CaptionFrame, style: OverlayStyle) -> some View {
-        let caption = OverlayMetrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
+    private static func scene(frame: CaptionFrame, style: OverlayStyle, metrics: OverlayMetrics) -> some View {
+        let caption = metrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
         let panelHeight = caption.height + style.topInset
         let menuBarHeight: CGFloat = 32
-        let sceneWidth: CGFloat = 760
+        let sceneWidth = max(760, caption.width + 80)
         return ZStack(alignment: .top) {
             LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
             Color(white: 0.85).frame(height: menuBarHeight)
@@ -85,11 +105,31 @@ enum OverlaySnapshotRenderer {
                     .fill(.black)
                     .frame(width: notchWidth, height: notchHeight)
             }
-            CaptionOverlayView(frame: frame, style: style)
+            CaptionOverlayView(frame: frame, style: style, metrics: metrics)
                 .frame(width: caption.width, height: panelHeight)
                 .padding(.top, style == .pill ? menuBarHeight + OverlayPlacement.pillGap : 0)
         }
         .frame(width: sceneWidth, height: max(panelHeight, menuBarHeight + OverlayPlacement.pillGap + caption.height) + 40)
+        .environment(\.colorScheme, .dark)
+    }
+
+    /// The pill in the bottom position: `OverlayPlacement.bottomGap` above a
+    /// strip of fake Dock at the bottom of the screen.
+    private static func bottomScene(frame: CaptionFrame, metrics: OverlayMetrics) -> some View {
+        let caption = metrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
+        let dockHeight: CGFloat = 64
+        let sceneWidth = max(760, caption.width + 80)
+        return ZStack(alignment: .bottom) {
+            LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(white: 0.8).opacity(0.6))
+                .frame(width: sceneWidth * 0.6, height: dockHeight - 8)
+                .padding(.bottom, 4)
+            CaptionOverlayView(frame: frame, style: .pill, metrics: metrics)
+                .frame(width: caption.width, height: caption.height)
+                .padding(.bottom, dockHeight + OverlayPlacement.bottomGap)
+        }
+        .frame(width: sceneWidth, height: caption.height + dockHeight + OverlayPlacement.bottomGap + 40)
         .environment(\.colorScheme, .dark)
     }
 

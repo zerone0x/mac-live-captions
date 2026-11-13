@@ -383,3 +383,99 @@ and can drive menu state from `onStatus` as long as it consumes updates in
 order. Whether ScreenCaptureKit delivers silent buffers is no longer load
 bearing; it is still worth noting on the first real-Mac test. The races
 themselves need a real Mac to reproduce; the PR for #22 lists the steps.
+
+## 0014: Session state machine, honest menu states, system audio only
+
+2026-11-12 · #11
+
+**Context.** Before #11, Start sent `.startRequested` and `.didStart` back to
+back, so the menu said "Listening" with nothing captured, while the debug
+capture test captured audio under "Not listening". `SessionPhase` had no
+permission, no-audio or speech-model states. `CaptionComposer` joined every
+volatile line of a snapshot into one tail, so system audio and microphone
+speech would interleave word by word. The demo and real captions shared the
+overlay with no rule.
+
+**Decision.**
+
+- `SessionPhase` (Core) is the session lifecycle: idle, checking model,
+  waiting for model (not installed, downloading, unsupported, failed),
+  starting capture, listening (hearing, no audio, reconnecting), stopping,
+  permission denied, failed. `transition(on:)` returns the new phase plus
+  `SessionEffect`s (check model, start pipeline, stop pipeline) that
+  `AppModel` performs. The phase reaches `listening` only when the audio
+  source reports `capturing`; a pipeline that ends while listening without
+  Stop is an error, not idle. A session waiting for the model starts by
+  itself when the model reports ready.
+- `SessionStatus` (Core) maps phase, speech model state and the debug capture
+  test onto the menu line, the icon and the offered actions, with a test
+  table. The icon is filled only while audio is captured; the capture test
+  shows as "Listening (audio capture test)".
+- `CaptionPipeline` (Core) runs one session: `AudioSource` →
+  `Transcriber` → `CaptionStore` → `CaptionPresenter`. Errors from the source
+  and the transcriber are thrown from `run()`; stopping the source ends it
+  after the last final result. Following the ordered `onStatus` contract of
+  0013, `AppModel` sends the source's status updates and the end of `run()`
+  through one `AsyncStream` per pipeline with one main-actor consumer, so
+  they are handled in the order they happened (not a `Task` per update,
+  which can reorder them). It drops updates from an older
+  pipeline (by generation number) and anything after the end of the
+  pipeline. A denied permission the source already reported as its status is
+  not reported a second time from the thrown error.
+- Volatile updates are throttled (`CaptionUpdateThrottle`, 250 ms): new
+  final text and clears show at once, volatile-only changes at most four
+  times a second, and the newest pending one is flushed when the interval
+  ends or the session stops. Wrapping only at finalized boundaries was
+  considered and left out: the composer already keeps finalized text fixed,
+  and the throttle removes most of the jumping of the volatile tail.
+- The pipeline captions system audio only. The microphone stays an explicit
+  opt-in in "Debug: Audio Capture" until a layout for two origins exists. As
+  a guard, `CaptionComposer` shows only the newest volatile line of a
+  snapshot, so two origins can never merge into one line.
+- Start stops the demo and the capture test; neither can start while a
+  session is active.
+- The en-US model is checked (no download) at launch and on Start. It is
+  downloaded only when the user clicks "Download English Speech Model" in the
+  welcome window or the menu; the copy says that this system download from
+  Apple is the app's only network use.
+- Settings (text size, top or bottom position, best-effort hide from screen
+  sharing) and the "welcome closed" flag are the only things stored, as
+  preferences. Audio and transcripts stay in memory and are never logged.
+- Global shortcut ⌃⌥C toggles captions through Carbon `RegisterEventHotKey`,
+  which needs no Accessibility permission.
+
+**Consequences.** Real capture, permissions and recognition still cannot run
+in CI (hosted runners are VMs); `docs/TESTING.md` is the owner's manual
+checklist. Mixing microphone captions in needs its own decision (per-origin
+lines or labels). The shortcut is fixed until a settings field for it is
+worth the complexity.
+
+## 0015: Carbon is allowed for the global shortcut
+
+2026-11-13 · #11
+
+**Context.** The ⌃⌥C shortcut (0014) uses `RegisterEventHotKey` from
+`Carbon.HIToolbox`, so the app links `Carbon.framework`. The linked-framework
+check (0012) allows only listed system frameworks, so the build failed it.
+The alternatives need more than this one key: a global `NSEvent` monitor
+needs the Accessibility permission and sees every key press, and a
+`CGEventTap` needs Input Monitoring.
+
+**Decision.** `Carbon` joins the allow-list in
+`scripts/check-linked-frameworks.sh`. The app uses only the hot-key part of
+HIToolbox (`InstallEventHandler`, `GetApplicationEventTarget`,
+`RegisterEventHotKey`); none of it is networking, and `RegisterEventHotKey`
+needs no permission and sees only the registered key combination. The
+self-test has a good fixture (`linked-frameworks/good/carbon-hotkey`) that
+links Carbon and imports these symbols, so the entry is tested.
+
+**Consequences.** The symbol check still covers whatever the app calls
+through Carbon; a networking symbol fails it like any other. If Apple removes
+`RegisterEventHotKey`, the shortcut needs a new decision.
+
+The first build with Carbon allowed still failed the symbol check on
+`_dlsym`. It did not come from Carbon: SwiftUI's `View.tag(_:)` (used in the
+Settings pickers) returns an opaque type chosen by OS version, which makes
+the binary call `__isPlatformVersionAtLeast`; that compiler-rt helper imports
+`dlsym`. The pickers now rely on `ForEach`'s implicit tags instead, and
+`dlsym` stays denied.
