@@ -16,6 +16,32 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 status=0
 
+# Package.resolved fixtures are stored as Package.resolved.fixture: GitHub's
+# dependency graph parses a file named Package.resolved anywhere in the repo and
+# raises Dependabot alerts for the old pins the bad fixtures contain. The
+# self-test copies each fixture folder into a temp dir and strips the .fixture
+# suffix before running the check. Any failure to copy or rename stops the run.
+scratch="$(mktemp -d)" || {
+  echo "selftest: cannot create a temp dir" >&2
+  exit 2
+}
+cleanup() {
+  chmod -R u+rwx "$scratch" ${tmp:+"$tmp"} 2>/dev/null
+  rm -rf "$scratch" ${tmp:+"$tmp"}
+}
+trap cleanup EXIT
+
+# materialize DIR: prints the path of a copy of DIR with *.fixture renamed.
+materialize() {
+  local src="$1" dst f
+  dst="$(mktemp -d "$scratch/fx.XXXXXX")" || return 2
+  cp -R "$src/." "$dst/" || return 2
+  while IFS= read -r f; do
+    mv "$f" "${f%.fixture}" || return 2
+  done < <(find "$dst" -name '*.fixture' -type f) || return 2
+  echo "$dst"
+}
+
 # Runs "$@" and checks its exit code is exactly $want.
 expect_exit() {
   local want="$1" rc=0
@@ -61,10 +87,26 @@ expect_pass scripts/check-offline.sh "$fixtures/good"
 # Remote dependencies.
 fixtures=scripts/fixtures/dependencies
 for d in "$fixtures"/bad/*/; do
-  expect_fail scripts/check-dependencies.sh "${d%/}"
+  m="$(materialize "${d%/}")" || {
+    echo "selftest: cannot materialize $d" >&2
+    exit 2
+  }
+  expect_fail scripts/check-dependencies.sh "$m"
 done
 for d in "$fixtures"/good/*/; do
-  expect_pass scripts/check-dependencies.sh "${d%/}"
+  m="$(materialize "${d%/}")" || {
+    echo "selftest: cannot materialize $d" >&2
+    exit 2
+  }
+  expect_pass scripts/check-dependencies.sh "$m"
+done
+# The renamed Package.resolved fixtures must really be exercised.
+for d in bad/resolved bad/resolved-v1 good/local-packages; do
+  m="$(materialize "$fixtures/$d")" || exit 2
+  [[ -f "$m/Package.resolved" ]] || {
+    echo "selftest: $d lost its Package.resolved" >&2
+    exit 2
+  }
 done
 
 # Linked frameworks and imported symbols of the built binary.
@@ -88,9 +130,7 @@ done
 
 # Internal errors: an unreadable file or directory must stop a check with
 # exit 2 instead of reporting OK. Skipped as root, which can read anything.
-tmp="$(mktemp -d)"
-cleanup() { chmod -R u+rwx "$tmp" 2>/dev/null; rm -rf "$tmp"; }
-trap cleanup EXIT
+tmp="$(mktemp -d)" || exit 2
 
 mkdir -p "$tmp/offline" "$tmp/dep-file" "$tmp/dep-yaml" "$tmp/dep-dir/locked"
 cp scripts/fixtures/offline/good/ok.swift "$tmp/offline/ok.swift"
