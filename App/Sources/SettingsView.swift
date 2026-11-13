@@ -9,14 +9,19 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Captions") {
+                // No `.tag(_:)`: ForEach's `id: \.self` already tags each row
+                // with the selection value. `.tag` returns an opaque type that
+                // depends on the OS version, so it links compiler-rt's version
+                // check, which imports `dlsym` and fails
+                // check-linked-frameworks (DECISIONS 0015).
                 Picker("Text size", selection: $model.settings.fontSize) {
                     ForEach(CaptionFontSize.allCases, id: \.self) { size in
-                        Text(size.title).tag(size)
+                        Text(size.title)
                     }
                 }
                 Picker("Position", selection: $model.settings.position) {
                     ForEach(OverlayPosition.allCases, id: \.self) { position in
-                        Text(position.title).tag(position)
+                        Text(position.title)
                     }
                 }
                 Text("On displays without a notch, the top position is a pill under the menu bar.")

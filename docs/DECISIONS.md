@@ -472,3 +472,10 @@ links Carbon and imports these symbols, so the entry is tested.
 **Consequences.** The symbol check still covers whatever the app calls
 through Carbon; a networking symbol fails it like any other. If Apple removes
 `RegisterEventHotKey`, the shortcut needs a new decision.
+
+The first build with Carbon allowed still failed the symbol check on
+`_dlsym`. It did not come from Carbon: SwiftUI's `View.tag(_:)` (used in the
+Settings pickers) returns an opaque type chosen by OS version, which makes
+the binary call `__isPlatformVersionAtLeast`; that compiler-rt helper imports
+`dlsym`. The pickers now rely on `ForEach`'s implicit tags instead, and
+`dlsym` stays denied.
