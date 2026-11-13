@@ -82,7 +82,7 @@ cleanup() {
       echo "LiveCaptions ignored SIGTERM; killing it" >&2
       kill -KILL "$app_pid"
     fi
-    # Reap it, so bash does not report the job as "Terminated".
+    # Reap it and log its status (143 = SIGTERM; bash also logs "Terminated").
     local app_status=0
     wait "$app_pid" 2>/dev/null || app_status=$?
     echo "LiveCaptions stopped (status $app_status)"
