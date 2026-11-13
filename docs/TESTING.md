@@ -45,9 +45,14 @@ The overlay renders that have a file in `scripts/fixtures/screenshots/` (the
 four states in notch and pill style, the extra large and the bottom renders;
 not the accessibility variants) are compared with it by
 `make compare-screenshots` (`scripts/compare-screenshots.swift`). A pixel
-differs when a channel is off by more than 8 of 255; an image fails when more
-than 0.1 % of its pixels differ. A failing image gets `<name>.diff.png`
-(differing pixels in red) in the same artifact.
+differs when a channel (alpha too) is off by more than 8 of 255; an image
+fails when more than 0.1 % of its pixels differ, or when its size differs. A
+failing image gets `<name>.diff.png` (differing pixels in red) in the same
+artifact. `scripts/compare-screenshots-selftest.sh` pins both thresholds
+from each side with synthetic images: 10 of 10 000 pixels changed passes and
+11 fails; a channel off by 8 passes and by 9 fails; an alpha-only change
+fails. It also covers a different size, a missing image and an unreadable
+reference (exit 2).
 
 The renders were byte-identical on separate CI runners, so a failure means
 the overlay changed. If the change is intended, look at the new PNGs, then
@@ -71,8 +76,30 @@ black, like the pill). Then `make live-screenshots`
 screen (`live-full-<t>s.png`) and the top 240 points (`live-top-<t>s.png`).
 `windows-<t>s.txt` lists the app's on-screen windows (layer and frame), so a
 window missing from a PNG can be told apart from a capture problem.
-`app.log` is the app's output. The step fails if the app quits or has fewer
-than two windows on screen.
+`app.log` is the app's output.
+
+The step fails (exit 1) if the app quits, if it does not have exactly one
+overlay window (layer above 0) on screen, or if the overlay is not in the
+capture. The welcome window (layer 0) may be there or not: it only opens
+until it has been closed once. The menu-bar icon is not in the window list.
+Without Screen Recording, `screencapture` still succeeds and the window list
+still has the overlay, but the PNG shows only the desktop and the menu bar.
+So `screen-info.swift overlay-check` samples the full capture at the
+overlay's frame: the desktop colour is the median of bands left, right and
+below the frame, and at least half of the frame (inset from its rounded
+corners) must differ from it by more than 40 of 255 in some channel. If the
+desktop around the frame is not one colour (fewer than 90 % of its pixels
+near the median), the check can't tell and fails with exit 2: locally, use a
+solid desktop picture such as Solid Colors > Silver. A black desktop hides
+the black overlay and fails too.
+
+Every command in the script runs under `scripts/with-timeout.sh` (also
+outside CI): `swift` helpers get 180 s, `screencapture` 30 s. A timeout kills
+the command's whole process group and is exit 2, like any tool error. An app
+that ignores SIGTERM at the end is killed after 5 s.
+`scripts/live-screenshots-selftest.sh` checks the time limits (on Linux too)
+and the overlay check on synthetic screenshots (shown, desktop only, at 1x
+and 2x, black and busy desktops).
 
 What the `macos-26` runner shows:
 

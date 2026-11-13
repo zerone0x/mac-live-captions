@@ -138,6 +138,12 @@ jobs:
           fi
           osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$picture\""
 
+      # Time limits, and the pixel check that tells a denied Screen
+      # Recording from a captured overlay (docs/TESTING.md).
+      - name: Self-test the live screenshot checks
+        timeout-minutes: 5
+        run: scripts/live-screenshots-selftest.sh
+
       - name: Screenshot the running app with demo captions
         timeout-minutes: 5
         run: make live-screenshots
