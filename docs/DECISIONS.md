@@ -356,7 +356,11 @@ target has none.
   calls `onStatus` under one lock, so delivery order is apply order, and it
   drops events of any run but the open one, including everything after the
   run's `.stopped`. `onStatus` keeps its signature but must return quickly and
-  not call back into the source. A source reports `.stopped` before it
+  not call back into the source. A source opens the run in the reporter in
+  the same critical section as `runs.begin()`, and the reporter refuses to
+  open a run that already ended, so a `stop()` racing `start()` cannot leave
+  "Starting" behind. `.started` also clears "No audio": a rebuilt stream
+  starts its silence monitor afresh. A source reports `.stopped` before it
   finishes the chunk stream. Consumers keep the order with one `AsyncStream`
   and one consumer (the debug probe does), not a `Task` per update.
 - `CaptureRetryTracker` (Core) resets the attempt count only when the stream

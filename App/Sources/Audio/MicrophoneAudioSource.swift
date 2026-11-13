@@ -54,6 +54,9 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
         let run = lock.withLock { () -> CaptureToken? in
             guard let run = runs.begin() else { return nil }
             self.continuation = continuation
+            // Same critical section as `runs.begin()`, so a `stop()` cannot
+            // end the run before it is opened. The reporter never takes this lock.
+            reporter.begin(run)
             return run
         }
         guard let run else {
@@ -61,7 +64,7 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
         }
         continuation.onTermination = { [weak self] termination in
             guard case .cancelled = termination else { return }
-            Task { await self?.stop() }
+            Task { await self?.stop(only: run) }
         }
         let startedAt = Self.now
         processingQueue.sync {
@@ -69,7 +72,6 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
             assembler.reset()
             silence.reset(at: startedAt)
         }
-        reporter.begin(run)
 
         let granted = await Self.requestPermission()
         // The prompt can stay open for a long time; `stop()` may have run.
@@ -95,15 +97,33 @@ final class MicrophoneAudioSource: AudioSource, @unchecked Sendable {
     }
 
     func stop() async {
+        await stop(only: nil)
+    }
+
+    /// Stops `target`, or whichever run is active if `target` is `nil`. A consumer
+    /// that cancels its chunk stream stops only its own run, never a newer one.
+    private func stop(only target: CaptureToken?) async {
         let taken = lock.withLock { () -> (CaptureToken, Running?, AsyncThrowingStream<AudioChunk, any Error>.Continuation?)? in
-            guard let run = runs.end() else { return nil }
+            let ended: CaptureToken?
+            if let target {
+                ended = runs.end(target) ? target : nil
+            } else {
+                ended = runs.end()
+            }
+            guard let ended else { return nil }
             defer { self.continuation = nil }
-            return (run, detachEngine(), self.continuation)
+            return (ended, detachEngine(), self.continuation)
         }
         guard let taken else { return }
         let (run, running, continuation) = taken
         running?.tearDown()
-        if let tail = processingQueue.sync(execute: { assembler.flush() }) {
+        // The assembler is shared: if a new run started meanwhile, it has
+        // reset the assembler and the samples in it are not ours.
+        let tail = processingQueue.sync { () -> AudioChunk? in
+            guard !lock.withLock({ runs.isActive }) else { return nil }
+            return assembler.flush()
+        }
+        if let tail {
             continuation?.yield(tail)
         }
         // Report before finishing the chunk stream, so a consumer that waits

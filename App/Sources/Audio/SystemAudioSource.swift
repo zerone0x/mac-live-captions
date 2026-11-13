@@ -90,6 +90,10 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
             self.continuation = continuation
             retry = CaptureRetryTracker(policy: retryPolicy)
             bufferCount = 0
+            // Open the run in the reporter in the same critical section, so a
+            // `stop()` cannot end it first and leave "Starting" behind. Safe:
+            // the reporter never takes this lock.
+            reporter.begin(run)
             return run
         }
         guard let run else {
@@ -99,7 +103,7 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
             // Only a consumer that stops listening stops capture; a stream we
             // finished ourselves is already stopped.
             guard case .cancelled = termination else { return }
-            Task { await self?.stop() }
+            Task { await self?.stop(only: run) }
         }
         let startedAt = Self.now
         sampleQueue.sync {
@@ -107,7 +111,6 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
             assembler.reset()
             silence.reset(at: startedAt)
         }
-        reporter.begin(run)
 
         guard Self.hasPermission else {
             // Shows the system prompt the first time; later it only reports
@@ -135,16 +138,34 @@ final class SystemAudioSource: NSObject, AudioSource, @unchecked Sendable {
     }
 
     func stop() async {
+        await stop(only: nil)
+    }
+
+    /// Stops `target`, or whichever run is active if `target` is `nil`. A consumer
+    /// that cancels its chunk stream stops only its own run, never a newer one.
+    private func stop(only target: CaptureToken?) async {
         let taken = lock.withLock { () -> Detached? in
-            guard let run = runs.end() else { return nil }
-            return detachAll(run)
+            let ended: CaptureToken?
+            if let target {
+                ended = runs.end(target) ? target : nil
+            } else {
+                ended = runs.end()
+            }
+            guard let ended else { return nil }
+            return detachAll(ended)
         }
         guard let taken else { return }
         taken.release()
         if let stream = taken.stream {
             try? await stream.stopCapture()
         }
-        if let tail = sampleQueue.sync(execute: { assembler.flush() }) {
+        // The assembler is shared: if a new run started during the await, it
+        // has reset the assembler and the samples in it are not ours.
+        let tail = sampleQueue.sync { () -> AudioChunk? in
+            guard !lock.withLock({ runs.isActive }) else { return nil }
+            return assembler.flush()
+        }
+        if let tail {
             taken.continuation?.yield(tail)
         }
         // Report before finishing the chunk stream, so a consumer that waits

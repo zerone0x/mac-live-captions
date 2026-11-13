@@ -201,6 +201,89 @@ struct CaptureLifecycleTests {
         #expect(reporter.status == .starting)
     }
 
+    @Test("stop between runs.begin() and reporter.begin(): the late begin does not show 'Starting'")
+    func reporterIgnoresBeginAfterEnd() throws {
+        // start() takes a token; stop() ends that run and reports "stopped"
+        // before start() opens it in the reporter. The sources open the run
+        // in the same critical section as runs.begin(), and the reporter
+        // refuses the late begin as well.
+        let recorder = StatusRecorder()
+        let reporter = CaptureStatusReporter(deliver: recorder.record)
+        var runs = CaptureGenerations()
+        let run = try begun(&runs)
+        let ended = runs.end()
+        #expect(ended == run)
+        let endedRun = try #require(ended)
+        reporter.end(endedRun, with: .stopped)
+        reporter.begin(run)
+        reporter.send(.started, for: run)
+        #expect(reporter.status == .idle, "status after stop is \(reporter.status)")
+        #expect(recorder.statuses.isEmpty)
+        // The next run still starts normally.
+        let next = try begun(&runs)
+        reporter.begin(next)
+        #expect(reporter.status == .starting)
+    }
+
+    @Test("an older run cannot be reopened after a newer one began")
+    func reporterIgnoresOlderBegin() throws {
+        let reporter = CaptureStatusReporter(deliver: { _ in })
+        var runs = CaptureGenerations()
+        let old = try begun(&runs)
+        _ = runs.end()
+        let new = try begun(&runs)
+        reporter.begin(new)
+        reporter.send(.started, for: new)
+        reporter.begin(old)
+        #expect(reporter.status == .capturing)
+        reporter.send(.silenceDetected, for: new)
+        #expect(reporter.status == .noAudio)
+    }
+
+    @Test("restart while 'No audio', then sound within 5 s: status becomes 'Capturing'")
+    func restartWhileSilentThenSound() throws {
+        // SystemAudioSource: status is "No audio", the device-change check
+        // rebuilds the stream, startStream() resets the SilenceMonitor and
+        // reconnect() reports `.started`.
+        let reporter = CaptureStatusReporter(deliver: { _ in })
+        var runs = CaptureGenerations()
+        let run = try begun(&runs)
+        var silence = SilenceMonitor()
+        silence.reset(at: 0)
+        reporter.begin(run)
+        reporter.send(.started, for: run)
+        if let event = silence.check(at: 5.5) { reporter.send(event, for: run) }
+        #expect(reporter.status == .noAudio)
+        // Device change at 6, no buffers for 4 s: restart() at 10.
+        silence.reset(at: 10)
+        reporter.send(.started, for: run)
+        #expect(reporter.status == .capturing)
+        // Sound at 11, before the monitor's timeout.
+        if let event = silence.process(AudioLevel(samples: [0.5, -0.5]), at: 11) { reporter.send(event, for: run) }
+        if let event = silence.check(at: 11.5) { reporter.send(event, for: run) }
+        #expect(reporter.status == .capturing, "audio is being captured but the menu says \(reporter.status)")
+    }
+
+    @Test("restart while 'No audio' and still quiet: 'No audio' comes back after the timeout")
+    func restartWhileSilentStaysSilent() throws {
+        let recorder = StatusRecorder()
+        let reporter = CaptureStatusReporter(deliver: recorder.record)
+        var runs = CaptureGenerations()
+        let run = try begun(&runs)
+        var silence = SilenceMonitor()
+        silence.reset(at: 0)
+        reporter.begin(run)
+        reporter.send(.started, for: run)
+        if let event = silence.check(at: 5.5) { reporter.send(event, for: run) }
+        silence.reset(at: 10)
+        reporter.send(.started, for: run)
+        if let event = silence.check(at: 14.5) { reporter.send(event, for: run) }
+        #expect(reporter.status == .capturing)
+        if let event = silence.check(at: 15.5) { reporter.send(event, for: run) }
+        #expect(reporter.status == .noAudio)
+        #expect(recorder.statuses == [.starting, .capturing, .noAudio, .capturing, .noAudio])
+    }
+
     @Test("a status being delivered is not overtaken by a stop on another thread")
     func reporterDeliversInApplyOrder() throws {
         var generations = CaptureGenerations()

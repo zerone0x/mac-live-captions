@@ -118,20 +118,32 @@ public struct CaptureRetryTracker: Sendable {
 /// Owns a source's `AudioCaptureStatus` and reports each change exactly once,
 /// in order, for the run it belongs to.
 ///
-/// Events are applied and delivered under one lock, so two threads (the
-/// sample queue reporting silence and `stop()` reporting `.stopped`) can never
-/// deliver in the opposite order to the one they were applied in. Events
-/// tagged with a token other than the open run's are dropped, and so is
-/// anything after the run ended: a late "no audio" from a stopped stream
-/// cannot overwrite "Not capturing", or a newer run's status.
+/// The `deliver` (`onStatus`) contract:
 ///
-/// `deliver` runs under the lock: it must return quickly and must not call
-/// back into the reporter or the source (yield into an `AsyncStream`, for
-/// example).
+/// - **Ordered.** Events are applied and delivered under one lock, so two
+///   threads (the sample queue reporting silence and `stop()` reporting
+///   `.stopped`) can never deliver in the opposite order to the one they were
+///   applied in.
+/// - **One at a time.** `deliver` is never called concurrently with itself.
+/// - **No call-back.** `deliver` runs under the reporter's lock, and sources
+///   call the reporter while holding their own lock: it must return quickly
+///   and must not call back into the reporter or the source (yield into an
+///   `AsyncStream`, for example). The reporter never takes a source's lock,
+///   so calling it under one cannot deadlock.
+///
+/// Events tagged with a token other than the open run's are dropped, and so
+/// is anything after the run ended: a late "no audio" from a stopped stream
+/// cannot overwrite "Not capturing", or a newer run's status. Tokens only
+/// grow, so a run that already ended (or is older than one already seen)
+/// cannot be opened again: `begin` arriving after its run's `end` does
+/// nothing.
 public final class CaptureStatusReporter: Sendable {
     private struct State {
         var status: AudioCaptureStatus = .idle
         var openRun: CaptureToken?
+        /// Newest token passed to `begin` or `end`; older or equal tokens
+        /// cannot open a run.
+        var newestSeen: UInt64 = 0
     }
 
     private let state = Mutex(State())
@@ -146,9 +158,15 @@ public final class CaptureStatusReporter: Sendable {
         state.withLock { $0.status }
     }
 
-    /// Opens `run` and reports `.starting`. Replaces any run still open.
+    /// Opens `run` and reports `.starting`. Replaces any older run still open.
+    /// Does nothing if `run` already ended or a newer run was seen.
+    ///
+    /// Call it in the same critical section as `CaptureGenerations.begin()`,
+    /// so a `stop()` cannot end the run before it is opened.
     public func begin(_ run: CaptureToken) {
         state.withLock { state in
+            guard run.value > state.newestSeen else { return }
+            state.newestSeen = run.value
             state.openRun = run
             update(&state, to: AudioCaptureStatus.idle.applying(.startRequested))
         }
@@ -163,10 +181,14 @@ public final class CaptureStatusReporter: Sendable {
     }
 
     /// Applies the last event of `run` (`.stopped` or an error) and closes it,
-    /// so nothing else from that run is reported.
+    /// so nothing else from that run is reported. If `run` was never opened,
+    /// it is marked as ended so a late `begin` cannot open it.
     public func end(_ run: CaptureToken, with event: AudioCaptureEvent) {
         state.withLock { state in
-            guard state.openRun == run else { return }
+            guard state.openRun == run else {
+                state.newestSeen = max(state.newestSeen, run.value)
+                return
+            }
             state.openRun = nil
             update(&state, to: state.status.applying(event))
         }
