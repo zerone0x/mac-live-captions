@@ -81,10 +81,12 @@ struct OnboardingView: View {
         .frame(width: 520)
         .onAppear {
             hasPermission = model.hasSystemAudioPermission
+            model.isWelcomeWindowOpen = true
             model.refreshModelState()
             NSApplication.shared.activate()
         }
         .onDisappear {
+            model.isWelcomeWindowOpen = false
             model.hasCompletedOnboarding = true
         }
     }

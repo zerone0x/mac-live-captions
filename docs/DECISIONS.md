@@ -568,6 +568,43 @@ A formatting-only diff fails `format-check` until `make format` runs, which
 needs a Swift 6 toolchain (Xcode 26, or Linux). Updating Xcode means editing
 the pin in `.github/workflows/ci.yml` and this entry.
 
+## 0021: Watch a speech model download this process does not drive
+
+2026-11-13 · #40
+
+**Context.** A session waiting for the model left `waitingForModel(.downloading)`
+only on a `modelStateChanged` event, and those came from a one-time check
+(launch, Start, welcome window) or from an `install` call in this process.
+After a relaunch during the download (the welcome window asks for one after
+the permission grant), or when `install` returned while the system still
+retried in the background, nothing reported `.ready`. The menu promised
+"Captions start when the download finishes" and they never did.
+
+**Decision.**
+- `ModelStateWatch` (Core) decides when to re-read the model state: the
+  model is `.downloading`, no `install` call runs in this process (that one
+  reports progress itself), and a session waits for the model (checking or
+  waiting) or the welcome window is open. `run` re-reads
+  `SpeechAssetProvider.currentState()` after 2 s, 3 s, 4 s, then every 5 s,
+  and ends when the state is no longer downloading, the app says the watch is
+  no longer needed, or the task is cancelled. It only reads the local
+  `AssetInventory` status; it never downloads and makes no network call.
+- `AppModel` re-evaluates the watch whenever the phase, the model state, the
+  install flag or the welcome window changes, and cancels it on Stop (the
+  phase goes idle), on relaunch and on quit. Reads from a cancelled watch are
+  dropped by generation number.
+- When the watch reads `.notInstalled` or `.failed`, the existing menu and
+  welcome window offer "Download English Speech Model" again, whoever started
+  the earlier download.
+
+**Consequences.** While a system download runs and something waits for it,
+the app reads the asset status at most every 2 s, backing off to every 5 s.
+The percentage of a download started by an earlier process is not shown
+(`AssetInventory.status` has none); the menu says "Downloading English speech
+model…" until it is done. Whether a second `assetInstallationRequest` can
+attach to the running system download and report progress has not been
+checked on a Mac yet.
+
 ## 0022: Dependency-check fixtures are not named like manifests
 
 **Context.** The bad fixtures of `check-dependencies.sh` include
