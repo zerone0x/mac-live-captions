@@ -10,7 +10,7 @@ public struct SessionStatus: Sendable, Hashable {
         /// Nothing is captured.
         case off
         /// Something is working towards captions (checking, downloading,
-        /// starting, stopping); nothing is captured yet.
+        /// starting capture, stopping); nothing is captured yet.
         case busy
         /// Audio is being captured right now.
         case listening
@@ -62,7 +62,7 @@ public struct SessionStatus: Sendable, Hashable {
         case .waitingForModel(let state):
             self = Self.waiting(for: state)
         case .startingCapture:
-            self.init(text: "Starting audio capture…", indicator: .listening)
+            self.init(text: "Starting audio capture…", indicator: .busy)
         case .listening(.hearing):
             self.init(text: "Listening", indicator: .listening)
         case .listening(.noAudio):
@@ -107,6 +107,14 @@ public struct SessionStatus: Sendable, Hashable {
             return SessionStatus(
                 text: "Not listening",
                 detail: "The English speech model is not installed yet.",
+                indicator: .off,
+                offersModelDownload: true
+            )
+        case .failed:
+            // A download from onboarding or the menu failed: offer it again.
+            return SessionStatus(
+                text: "Not listening",
+                detail: model.statusText,
                 indicator: .off,
                 offersModelDownload: true
             )

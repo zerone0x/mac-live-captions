@@ -203,3 +203,80 @@ struct FailingTranscriber: Transcriber {
         }
     }
 }
+
+/// Yields the transcript events the test sends while the audio runs, and
+/// finishes when the audio ends. Ignores the audio itself.
+final class ControlledTranscriber: Transcriber, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: AsyncThrowingStream<TranscriptEvent, any Error>.Continuation?
+
+    func transcribe(
+        _ audio: AsyncThrowingStream<AudioChunk, any Error>
+    ) -> AsyncThrowingStream<TranscriptEvent, any Error> {
+        let (events, continuation) = AsyncThrowingStream<TranscriptEvent, any Error>.makeStream()
+        lock.withLock { self.continuation = continuation }
+        let task = Task {
+            do {
+                for try await _ in audio {}
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return events
+    }
+
+    func send(_ event: TranscriptEvent) {
+        _ = lock.withLock { continuation }?.yield(event)
+    }
+
+    var isTranscribing: Bool { lock.withLock { continuation != nil } }
+}
+
+/// A sleep the test ends by hand: `sleep(_:)` records the delay and waits
+/// until `wakeAll()` (or cancellation).
+final class ManualSleeper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiting: [UUID: CheckedContinuation<Void, Never>] = [:]
+    private var delays: [TimeInterval] = []
+
+    /// Every delay asked for so far.
+    var requestedDelays: [TimeInterval] { lock.withLock { delays } }
+
+    /// How many sleeps are waiting right now.
+    var sleeping: Int { lock.withLock { waiting.count } }
+
+    func sleep(_ seconds: TimeInterval) async {
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let cancelled = lock.withLock { () -> Bool in
+                    delays.append(seconds)
+                    if Task.isCancelled { return true }
+                    waiting[id] = continuation
+                    return false
+                }
+                if cancelled { continuation.resume() }
+            }
+        } onCancel: {
+            lock.withLock { waiting.removeValue(forKey: id) }?.resume()
+        }
+    }
+
+    func wakeAll() {
+        let all = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            defer { waiting.removeAll() }
+            return Array(waiting.values)
+        }
+        for continuation in all {
+            continuation.resume()
+        }
+    }
+}
+
+/// Session time the test sets by hand.
+@MainActor
+final class ManualClock {
+    var now: TimeInterval = 0
+}

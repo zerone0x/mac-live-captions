@@ -54,6 +54,7 @@ final class AppModel {
     private let transcriber: any Transcriber = SpeechAnalyzerTranscriber()
     @ObservationIgnored private var source: (any AudioSource)?
     @ObservationIgnored private var pipelineTask: Task<Void, Never>?
+    @ObservationIgnored private var updatesTask: Task<Void, Never>?
     /// Increases with every pipeline start; callbacks from an older pipeline
     /// are dropped.
     @ObservationIgnored private var pipelineGeneration = 0
@@ -168,9 +169,13 @@ final class AppModel {
         case .startPipeline:
             startPipeline()
         case .stopPipeline:
-            let source = self.source
-            Task { await source?.stop() }
+            stopSource()
         }
+    }
+
+    private func stopSource() {
+        guard let source else { return }
+        Task { await source.stop() }
     }
 
     private func modelStateChanged(_ state: SpeechAssetState) {
@@ -178,51 +183,95 @@ final class AppModel {
         send(.modelStateChanged(state))
     }
 
+    /// What one pipeline reports, in the order it happened.
+    private enum PipelineUpdate: Sendable {
+        /// The audio source reported a status.
+        case status(AudioCaptureStatus)
+        /// `run()` returned or threw. `permissionDenied` is set when it threw
+        /// a denied permission, `model` when the transcriber found the speech
+        /// model not ready.
+        case ended(failure: String?, permissionDenied: AudioOrigin?, model: SpeechAssetState?)
+    }
+
     /// System audio only (docs/DECISIONS.md, 0014). The microphone stays in
     /// the debug capture test until two origins have a layout.
+    ///
+    /// The source calls `onStatus` one update at a time, in order, and the
+    /// callback must not call back into the source. Status updates and the
+    /// end of `run()` go through one stream with one main-actor consumer, so
+    /// they are handled in the order they happened; a `Task` per update could
+    /// reorder them. Updates after the end of a pipeline, or from an older
+    /// pipeline, are dropped.
     private func startPipeline() {
         pipelineGeneration += 1
         let generation = pipelineGeneration
-        // The model lives as long as the app, so strong captures are fine.
+        let (updates, continuation) = AsyncStream<PipelineUpdate>.makeStream()
         let source = SystemAudioSource(onStatus: { status in
-            Task { @MainActor in
-                self.captureStatusChanged(status, generation: generation)
-            }
+            continuation.yield(.status(status))
         })
         self.source = source
         overlay.present(.empty)
         let pipeline = CaptionPipeline(source: source, transcriber: transcriber, presenter: overlay)
-        pipelineTask = Task { [weak self] in
+
+        // The single consumer of this pipeline's updates.
+        updatesTask = Task { [weak self] in
+            for await update in updates {
+                guard let self, generation == self.pipelineGeneration else { return }
+                switch update {
+                case .status(let status):
+                    self.send(.captureStatusChanged(status))
+                case .ended(let failure, let permissionDenied, let model):
+                    self.pipelineEnded(failure: failure, permissionDenied: permissionDenied, model: model)
+                    return
+                }
+            }
+        }
+
+        pipelineTask = Task {
             var failure: String?
+            var permissionDenied: AudioOrigin?
+            var model: SpeechAssetState?
             do {
                 try await pipeline.run()
             } catch let error as AudioCaptureError {
                 if case .permissionDenied(let origin) = error {
-                    self?.captureStatusChanged(.permissionDenied(origin), generation: generation)
+                    permissionDenied = origin
                 }
                 failure = error.localizedDescription
             } catch let error as TranscriptionError {
                 if case .assetsNotReady(let state) = error {
-                    self?.modelStateChanged(state)
+                    model = state
                 }
                 failure = error.description
             } catch {
                 failure = error.localizedDescription
             }
-            self?.pipelineEnded(failure: failure, generation: generation)
+            // After every status the source reported for this run.
+            continuation.yield(.ended(failure: failure, permissionDenied: permissionDenied, model: model))
+            continuation.finish()
         }
     }
 
-    private func captureStatusChanged(_ status: AudioCaptureStatus, generation: Int) {
-        guard generation == pipelineGeneration else { return }
-        send(.captureStatusChanged(status))
-    }
-
-    private func pipelineEnded(failure: String?, generation: Int) {
-        guard generation == pipelineGeneration else { return }
+    private func pipelineEnded(failure: String?, permissionDenied: AudioOrigin?, model: SpeechAssetState?) {
+        if let model {
+            modelStateChanged(model)
+        }
+        // The source reports a denied permission as its status before it
+        // throws; only fill it in if that status did not arrive.
+        if let permissionDenied, !isPermissionDenied {
+            send(.captureStatusChanged(.permissionDenied(permissionDenied)))
+        }
+        // `.stopPipeline` effects of these transitions (a pipeline that died
+        // while listening) still reach this pipeline's source; it is released
+        // only afterwards.
+        send(.pipelineEnded(failure: failure))
         source = nil
         pipelineTask = nil
-        send(.pipelineEnded(failure: failure))
+        updatesTask = nil
+    }
+
+    private var isPermissionDenied: Bool {
+        if case .permissionDenied = phase { true } else { false }
     }
 
     // MARK: Permission

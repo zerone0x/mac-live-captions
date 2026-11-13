@@ -173,12 +173,12 @@ struct SessionPhaseTests {
     }
 
     @Test(
-        "only a session with capture running or starting counts as capturing",
+        "only a session whose source reported capture counts as capturing",
         arguments: [
             (SessionPhase.idle, false, false),
             (.checkingModel, false, true),
             (.waitingForModel(.notInstalled), false, true),
-            (.startingCapture, true, true),
+            (.startingCapture, false, true),
             (.listening(.hearing), true, true),
             (.stopping, false, true),
             (.permissionDenied(.system), false, false),

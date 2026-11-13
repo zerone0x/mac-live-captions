@@ -66,7 +66,10 @@ idle ──Start──▶ checkingModel ──ready──▶ startingCapture ─
 - `startPipeline`: a `SystemAudioSource` reports its `AudioCaptureStatus`
   as `captureStatusChanged`; a `CaptionPipeline` runs
   source → `SpeechAnalyzerTranscriber` → `CaptionStore` → throttle →
-  `NotchOverlayController`, and its end is `pipelineEnded`.
+  `NotchOverlayController`, and its end is `pipelineEnded`. Status updates
+  and the end travel through one ordered stream per pipeline with a single
+  main-actor consumer.
+- The menu icon is filled only in `listening`; `startingCapture` is busy.
 - The menu shows `SessionStatus(phase:model:captureTest:)`. The model is
   downloaded only on an explicit click (welcome window or menu).
 - System audio only; the microphone stays in the debug capture test.

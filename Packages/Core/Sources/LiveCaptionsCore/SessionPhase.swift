@@ -52,12 +52,10 @@ public enum SessionPhase: Sendable, Hashable {
         }
     }
 
-    /// Whether the session holds (or is acquiring) the audio source.
+    /// Whether the audio source has reported that capture runs. Starting
+    /// capture does not count: nothing is captured until the source says so.
     public var isCapturing: Bool {
-        switch self {
-        case .startingCapture, .listening: true
-        default: false
-        }
+        if case .listening = self { true } else { false }
     }
 
     /// Whether a session was requested and has not ended yet. While active,

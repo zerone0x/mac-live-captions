@@ -354,8 +354,13 @@ overlay with no rule.
 - `CaptionPipeline` (Core) runs one session: `AudioSource` →
   `Transcriber` → `CaptionStore` → `CaptionPresenter`. Errors from the source
   and the transcriber are thrown from `run()`; stopping the source ends it
-  after the last final result. `AppModel` drops callbacks from an older
-  pipeline by generation number.
+  after the last final result. `AppModel` sends the source's status updates
+  and the end of `run()` through one `AsyncStream` per pipeline with one
+  main-actor consumer, so they are handled in the order they happened (not a
+  `Task` per update, which can reorder them). It drops updates from an older
+  pipeline (by generation number) and anything after the end of the
+  pipeline. A denied permission the source already reported as its status is
+  not reported a second time from the thrown error.
 - Volatile updates are throttled (`CaptionUpdateThrottle`, 250 ms): new
   final text and clears show at once, volatile-only changes at most four
   times a second, and the newest pending one is flushed when the interval

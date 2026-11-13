@@ -129,6 +129,57 @@ struct CaptionPipelineTests {
         #expect(shown.last == ["The quick brown fox.", "jumps over"])
     }
 
+    @Test("mid-session, a waiting volatile update is shown when the interval ends")
+    func timerFlushMidSession() async throws {
+        let source = LiveFakeAudioSource()
+        let transcriber = ControlledTranscriber()
+        let presenter = RecordingPresenter()
+        let clock = ManualClock()
+        let sleeper = ManualSleeper()
+        let pipeline = CaptionPipeline(
+            source: source,
+            transcriber: transcriber,
+            presenter: presenter,
+            throttleInterval: 0.25,
+            now: { clock.now },
+            sleep: { seconds in await sleeper.sleep(seconds) }
+        )
+        let run = Task { try await pipeline.run() }
+        try await waitUntil { source.isStarted && transcriber.isTranscribing }
+
+        clock.now = 10
+        transcriber.send(volatileEvent(1, "hello"))
+        try await waitUntil { presenter.snapshots.count == 1 }
+
+        // Inside the interval: waits for the timer.
+        clock.now = 10.1
+        transcriber.send(volatileEvent(1, "hello there"))
+        try await waitUntil { sleeper.sleeping == 1 }
+        #expect(sleeper.requestedDelays.count == 1)
+        #expect(abs((sleeper.requestedDelays.first ?? 0) - 0.15) < 1e-9)
+        #expect(presenter.snapshots.count == 1)
+
+        // The interval ends while the session still runs.
+        clock.now = 10.25
+        sleeper.wakeAll()
+        try await waitUntil { presenter.snapshots.count == 2 }
+        #expect(presenter.snapshots.last?.lines.map(\.text) == ["hello there"])
+        #expect(source.isStarted)
+
+        // The next volatile update is throttled again, from the flush.
+        clock.now = 10.3
+        transcriber.send(volatileEvent(1, "hello there friend"))
+        try await waitUntil { sleeper.sleeping == 1 }
+        #expect(abs((sleeper.requestedDelays.last ?? 0) - 0.2) < 1e-9)
+        #expect(presenter.snapshots.count == 2)
+
+        await source.stop()
+        try await run.value
+        // Stopping flushes it.
+        #expect(presenter.snapshots.count == 3)
+        #expect(presenter.snapshots.last?.lines.map(\.text) == ["hello there friend"])
+    }
+
     @Test("a denied permission is thrown from run()")
     func permissionDenied() async {
         let pipeline = CaptionPipeline(

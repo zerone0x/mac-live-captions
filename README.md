@@ -57,7 +57,8 @@ Every PR and every push to `main` builds the app on GitHub Actions.
 Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
 overlay in notch and pill style for fixed states (one finalized line,
 finalized text plus a volatile tail, a two-line wrap, two finalized lines),
-plus the two-line wrap at the extra large text size (`overlay-*-xl-*.png`).
+plus the two-line wrap at the extra large text size (`overlay-*-xl-*.png`)
+and in the bottom position (`overlay-bottom-*.png`).
 
 Each build has a new ad-hoc signature, so macOS may ask for audio permissions
 again after you install a newer build.

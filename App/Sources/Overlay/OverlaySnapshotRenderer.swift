@@ -43,6 +43,16 @@ enum OverlaySnapshotRenderer {
                     }
                 }
             }
+            // The bottom position (Settings) for the wrap state.
+            if name == largeFontState {
+                let url = directory.appendingPathComponent("overlay-bottom-\(name).png")
+                if write(bottomScene(frame: frame, metrics: OverlayMetrics(fontSize: .default)), to: url) {
+                    print("rendered \(url.path)")
+                } else {
+                    print("failed to render \(url.path)")
+                    failures += 1
+                }
+            }
         }
         return failures
     }
@@ -100,6 +110,26 @@ enum OverlaySnapshotRenderer {
                 .padding(.top, style == .pill ? menuBarHeight + OverlayPlacement.pillGap : 0)
         }
         .frame(width: sceneWidth, height: max(panelHeight, menuBarHeight + OverlayPlacement.pillGap + caption.height) + 40)
+        .environment(\.colorScheme, .dark)
+    }
+
+    /// The pill in the bottom position: `OverlayPlacement.bottomGap` above a
+    /// strip of fake Dock at the bottom of the screen.
+    private static func bottomScene(frame: CaptionFrame, metrics: OverlayMetrics) -> some View {
+        let caption = metrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
+        let dockHeight: CGFloat = 64
+        let sceneWidth = max(760, caption.width + 80)
+        return ZStack(alignment: .bottom) {
+            LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(white: 0.8).opacity(0.6))
+                .frame(width: sceneWidth * 0.6, height: dockHeight - 8)
+                .padding(.bottom, 4)
+            CaptionOverlayView(frame: frame, style: .pill, metrics: metrics)
+                .frame(width: caption.width, height: caption.height)
+                .padding(.bottom, dockHeight + OverlayPlacement.bottomGap)
+        }
+        .frame(width: sceneWidth, height: caption.height + dockHeight + OverlayPlacement.bottomGap + 40)
         .environment(\.colorScheme, .dark)
     }
 

@@ -54,7 +54,7 @@ struct OnboardingView: View {
             }
 
             step(number: 3, title: "Start captions", done: model.phase.isCapturing) {
-                Text("Play a video or join a call; captions appear at the top of the screen. Start and stop from the menu bar or with \(GlobalHotKey.displayName) from any app.")
+                Text("Play a video or join a call; captions appear \(captionLocation). Start and stop from the menu bar or with \(GlobalHotKey.displayName) from any app.")
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -96,6 +96,14 @@ struct OnboardingView: View {
                 Text(title).font(.headline)
                 content()
             }
+        }
+    }
+
+    /// Where the overlay is, following the position setting.
+    private var captionLocation: String {
+        switch model.settings.position {
+        case .top: "at the top of the screen, at the notch"
+        case .bottom: "near the bottom of the screen"
         }
     }
 

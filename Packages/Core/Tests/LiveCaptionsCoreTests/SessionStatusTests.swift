@@ -16,7 +16,7 @@ struct SessionStatusTests {
             (.waitingForModel(.downloading(fractionCompleted: 0.42)), "Downloading English speech model (42%)…", .busy),
             (.waitingForModel(.unsupported), "On-device English speech recognition is not supported on this Mac", .attention),
             (.waitingForModel(.failed(message: "offline")), "Speech model error: offline", .attention),
-            (.startingCapture, "Starting audio capture…", .listening),
+            (.startingCapture, "Starting audio capture…", .busy),
             (.listening(.hearing), "Listening", .listening),
             (.listening(.noAudio), "Listening, no audio playing", .listening),
             (.listening(.reconnecting(attempt: 3)), "Audio interrupted, reconnecting (attempt 3)…", .listening),
@@ -31,7 +31,7 @@ struct SessionStatusTests {
         #expect(status.indicator == indicator)
     }
 
-    @Test("only phases with capture running or starting show as listening")
+    @Test("only phases with capture running show as listening, not while it starts")
     func listeningMatchesCapture() {
         let phases: [SessionPhase] = [
             .idle, .checkingModel, .waitingForModel(.notInstalled), .startingCapture,
@@ -76,6 +76,17 @@ struct SessionStatusTests {
         #expect(!ready.offersModelDownload)
         let downloading = SessionStatus(phase: .waitingForModel(.downloading(fractionCompleted: nil)), model: .ready)
         #expect(!downloading.offersModelDownload)
+    }
+
+    @Test("a failed download offers the download again while idle")
+    func idleFailedDownload() {
+        let status = SessionStatus(phase: .idle, model: .failed(message: "offline"))
+        #expect(status.offersModelDownload)
+        #expect(status.text == "Not listening")
+        #expect(status.detail == "Speech model error: offline")
+        #expect(status.indicator == .off)
+        let waiting = SessionStatus(phase: .waitingForModel(.failed(message: "offline")), model: .failed(message: "offline"))
+        #expect(waiting.offersModelDownload)
     }
 
     @Test("a download started from onboarding shows while idle")
