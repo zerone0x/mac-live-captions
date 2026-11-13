@@ -239,4 +239,32 @@ struct CaptionComposerTests {
         #expect(frame.lines.map(\.text) == ["Hello there. hi"])
         #expect(frame.lines.first?.finalText == "Hello there.")
     }
+
+    @Test("a long session keeps composer state bounded: scrolled-out text and old IDs are dropped")
+    func longSessionStaysBounded() {
+        // Fed like CaptionStore does: the newest two finals plus the volatile line.
+        var composer = CaptionComposer()
+        var time = 0.0
+        var maxWords = 0
+        var maxIDs = 0
+        for sentence in 1...2_000 {
+            let earlier = (max(1, sentence - 2)..<sentence).map { finalLine($0, "Sentence \($0) is finished now.") }
+            time += 0.3
+            composer.apply(CaptionSnapshot(lines: earlier + [volatileLine(sentence, "Sentence \(sentence) is")]), at: time)
+            time += 0.3
+            let frame = composer.apply(
+                CaptionSnapshot(lines: earlier + [finalLine(sentence, "Sentence \(sentence) is finished now.")]),
+                at: time
+            )
+            let shown = frame.lines.map(\.text).joined(separator: " ")
+            #expect(shown.hasSuffix("Sentence \(sentence) is finished now."), "frame shows '\(shown)'")
+            maxWords = max(maxWords, composer.committedWordCount)
+            maxIDs = max(maxIDs, composer.committedIDCount)
+        }
+        // At most the visible lines plus the last line that still takes
+        // finalized words: two 42-character lines hold well under 60 words.
+        #expect(maxWords <= 60, "composer kept \(maxWords) finalized words")
+        // Only IDs the latest snapshot still reports (three lines).
+        #expect(maxIDs <= 3, "composer kept \(maxIDs) segment IDs")
+    }
 }

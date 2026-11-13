@@ -33,6 +33,15 @@ struct OverlayPlacementTests {
         var noInset = Self.builtIn
         noInset.safeAreaTop = 0
         #expect(noInset.notch == nil)
+
+        // Zero-width auxiliary areas are not a notch, even if the frame
+        // minus them would leave a positive width.
+        var zeroLeft = Self.builtIn
+        zeroLeft.auxiliaryTopLeftArea = OverlayRect(x: 0, y: 950, width: 0, height: 32)
+        #expect(zeroLeft.notch == nil)
+        var zeroRight = Self.builtIn
+        zeroRight.auxiliaryTopRightArea = OverlayRect(x: 1512, y: 950, width: 0, height: 32)
+        #expect(zeroRight.notch == nil)
     }
 
     @Test("hangs from the notch, centred on it, touching the top edge")
@@ -48,7 +57,9 @@ struct OverlayPlacementTests {
     @Test("is never narrower than the notch plus its shoulders")
     func narrowCaptions() {
         let placement = OverlayPlacement.place(captionWidth: 100, captionHeight: 60, on: Self.builtIn)
-        #expect(placement.frame.width == 204 + 2 * OverlayPlacement.notchShoulder)
+        // 204-point notch plus a 24-point shoulder on each side. A literal, so
+        // the test fails if the shoulder constant changes or disappears.
+        #expect(placement.frame.width == 252)
         #expect(placement.frame.midX == 756)
     }
 

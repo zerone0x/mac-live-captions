@@ -240,6 +240,26 @@ struct CaptureLifecycleTests {
         #expect(reporter.status == .noAudio)
     }
 
+    @Test("a late end of an older run does not lower the newest run seen")
+    func reporterEndKeepsNewestSeen() throws {
+        let recorder = StatusRecorder()
+        let reporter = CaptureStatusReporter(deliver: recorder.record)
+        var runs = CaptureGenerations()
+        let first = try begun(&runs)
+        _ = runs.end()
+        let second = try begun(&runs)
+        _ = runs.end()
+        let third = try begun(&runs)
+        // The third run was already stopped before it was opened; then the
+        // first run's stop arrives late. The second run must stay closed.
+        reporter.end(third, with: .stopped)
+        reporter.end(first, with: .stopped)
+        reporter.begin(second)
+        reporter.send(.started, for: second)
+        #expect(reporter.status == .idle, "status is \(reporter.status)")
+        #expect(recorder.statuses.isEmpty)
+    }
+
     @Test("restart while 'No audio', then sound within 5 s: status becomes 'Capturing'")
     func restartWhileSilentThenSound() throws {
         // SystemAudioSource: status is "No audio", the device-change check

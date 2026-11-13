@@ -155,6 +155,15 @@ public struct CaptionComposer: Sendable {
         frame = .empty
     }
 
+    // MARK: - Test seams
+
+    /// Finalized words still held. Read by tests that check the composer
+    /// drops text that scrolled out of view.
+    var committedWordCount: Int { committed.count }
+    /// Segment IDs still remembered as committed. Read by tests that check
+    /// the set stays bounded.
+    var committedIDCount: Int { committedIDs.count }
+
     // MARK: - Private
 
     private func nextUnusedLineNumber() -> Int {

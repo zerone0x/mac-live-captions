@@ -56,6 +56,14 @@ struct AudioProcessingTests {
         #expect(AudioLevel(samples: []) == .silence)
     }
 
+    @Test("samples above full scale still fill the meter only to the top")
+    func meterClampsAboveFullScale() {
+        let loud = AudioLevel(samples: [Float](repeating: 2, count: 160))
+        #expect(loud.decibels > 0)
+        #expect(loud.meterFraction == 1)
+        #expect(AudioLevel(peak: 2, rms: 2).meterFraction == 1)
+    }
+
     @Test("half-scale square wave is about -6 dB, a tenth of the meter range")
     func halfScale() {
         let level = AudioLevel(samples: [0.5, -0.5, 0.5, -0.5])
@@ -116,6 +124,21 @@ struct AudioProcessingTests {
             let gap: Double = abs(previous.endTime - next.startTime)
             #expect(gap < 1e-9)
         }
+    }
+
+    @Test("after a flush, the next chunk starts where the short flushed chunk ended")
+    func contiguousAfterFlush() throws {
+        var assembler = AudioChunkAssembler(origin: .system)
+        _ = assembler.append([Float](repeating: 0, count: 2_000))
+        let flushed = assembler.flush()
+        let tail = try #require(flushed)
+        #expect(tail.samples.count == 400)
+        #expect(tail.startTime == 0.1)
+        let next = assembler.append([Float](repeating: 0, count: 1_600))
+        let start = try #require(next.first?.startTime)
+        // 2000 frames at 16 kHz.
+        #expect(abs(start - 0.125) < 1e-9)
+        #expect(abs(start - tail.endTime) < 1e-9)
     }
 
     @Test("reset starts a new session at time zero")

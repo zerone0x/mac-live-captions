@@ -189,4 +189,30 @@ struct SessionPhaseTests {
         #expect(phase.isCapturing == isCapturing)
         #expect(phase.isActive == isActive)
     }
+
+    @Test(
+        "an unexpected pipeline end while starting or listening fails and stops the pipeline",
+        arguments: [
+            SessionPhase.startingCapture,
+            .listening(.hearing),
+            .listening(.noAudio),
+            .listening(.reconnecting(attempt: 2)),
+        ]
+    )
+    func unexpectedEndStopsPipeline(phase: SessionPhase) {
+        #expect(
+            phase.transition(on: .pipelineEnded(failure: nil))
+                == SessionTransition(.failed(message: SessionPhase.unexpectedEndMessage), [.stopPipeline])
+        )
+        #expect(
+            phase.transition(on: .pipelineEnded(failure: "Model failed"))
+                == SessionTransition(.failed(message: "Model failed"), [.stopPipeline])
+        )
+    }
+
+    @Test("the pipeline end after Stop returns to idle with nothing left to do")
+    func endAfterStop() {
+        #expect(SessionPhase.stopping.transition(on: .pipelineEnded(failure: nil)) == SessionTransition(.idle))
+        #expect(SessionPhase.stopping.transition(on: .pipelineEnded(failure: "late")) == SessionTransition(.idle))
+    }
 }
