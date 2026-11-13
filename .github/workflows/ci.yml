@@ -66,14 +66,53 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Render overlay screenshots
+      - name: Render screenshots (overlay, menu, Settings, welcome)
         timeout-minutes: 3
         run: make screenshots
 
-      - name: Upload overlay screenshots
+      # Overlay renders were byte-identical across runners; a change beyond
+      # the tolerance fails here (docs/TESTING.md, "Reference images").
+      - name: Self-test the screenshot compare
+        timeout-minutes: 3
+        run: scripts/compare-screenshots-selftest.sh
+
+      - name: Compare overlay screenshots with the references
+        timeout-minutes: 3
+        run: make compare-screenshots
+
+      - name: Upload rendered screenshots
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
           name: overlay-screenshots-${{ github.event.pull_request.head.sha || github.sha }}
           path: build/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      # The runner agent holds Screen Recording, so screencapture from a step
+      # sees the app's windows (docs/TESTING.md, "Screenshots from CI").
+      # The runner's desktop is black, like the overlay pill; a grey one
+      # makes the pill's outline visible.
+      - name: Use a grey desktop picture
+        timeout-minutes: 2
+        run: |
+          picture="/System/Library/Desktop Pictures/Solid Colors/Silver.png"
+          if [[ ! -f "$picture" ]]; then
+            ls "/System/Library/Desktop Pictures/Solid Colors/"
+            echo "error: $picture is missing" >&2
+            exit 1
+          fi
+          osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$picture\""
+
+      - name: Screenshot the running app with demo captions
+        timeout-minutes: 5
+        run: make live-screenshots
+
+      - name: Upload live screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: live-screenshots-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/live-screenshots/
           if-no-files-found: error
           retention-days: 14

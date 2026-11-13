@@ -190,14 +190,20 @@ run `swift test --package-path Packages/Core`, and expect a failure.
   Release builds; `scripts/verify-app-selftest.sh` checks that it rejects bad
   bundles.
 - `make screenshots` runs the built app with `--render-overlay-snapshots` and
-  writes PNG renders of fixed overlay states to `build/screenshots`
-  (`OverlaySnapshotRenderer` in `App/Sources/Overlay/`).
+  writes PNG renders of fixed overlay states, the menu states, Settings and
+  the welcome window to `build/screenshots` (`OverlaySnapshotRenderer` in
+  `App/Sources/Overlay/`, `AppSnapshotRenderer` in `App/Sources/Screenshots/`).
+  `make compare-screenshots` checks the overlay renders against
+  `scripts/fixtures/screenshots/`. `make live-screenshots` screenshots the
+  running app with `--demo-captions` (docs/TESTING.md, "Screenshots from CI").
 - `.github/workflows/ci.yml` runs on a `macos-26` runner for every PR and push
   to `main`, in this order: `make check-offline`,
   `scripts/check-offline-selftest.sh`, `make test` (all packages),
   `scripts/verify-app-selftest.sh`, `make package`,
-  `make check-linked-frameworks`, then `make screenshots`. It uploads two
-  artifacts, kept for 14 days: `LiveCaptions-<sha>` (the zipped app) and
-  `overlay-screenshots-<sha>` (the PNGs). `<sha>` is the PR head commit, or
+  `make check-linked-frameworks`, `make screenshots`,
+  `scripts/compare-screenshots-selftest.sh`, `make compare-screenshots`, then
+  `make live-screenshots`. It uploads three artifacts, kept for 14 days:
+  `LiveCaptions-<sha>` (the zipped app), `overlay-screenshots-<sha>` (the
+  rendered PNGs) and `live-screenshots-<sha>`. `<sha>` is the PR head commit, or
   the pushed commit on `main`. The README ("Try a CI build") says how to
   download them.

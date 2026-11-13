@@ -63,7 +63,10 @@ Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
 overlay in notch and pill style for fixed states (one finalized line,
 finalized text plus a volatile tail, a two-line wrap, two finalized lines),
 plus the two-line wrap at the extra large text size (`overlay-*-xl-*.png`)
-and in the bottom position (`overlay-bottom-*.png`).
+and in the bottom position (`overlay-bottom-*.png`), the menu status states
+(`menu-*.png`), Settings and the welcome window. `live-screenshots-<sha>`
+has screenshots of the running app with the demo captions. What each file
+shows and how to read them: [docs/TESTING.md](docs/TESTING.md#screenshots-from-ci).
 
 Each build has a new ad-hoc signature, so macOS may ask for audio permissions
 again after you install a newer build.
@@ -73,7 +76,7 @@ only the screenshots of one run:
 
 ```sh
 gh run list --repo zerone0x/mac-live-captions --workflow ci.yml --branch <branch>
-gh run download <run-id> --repo zerone0x/mac-live-captions --pattern 'overlay-screenshots-*'
+gh run download <run-id> --repo zerone0x/mac-live-captions --pattern '*-screenshots-*'
 ```
 
 The manual test checklist for a real Mac is [docs/TESTING.md](docs/TESTING.md).
