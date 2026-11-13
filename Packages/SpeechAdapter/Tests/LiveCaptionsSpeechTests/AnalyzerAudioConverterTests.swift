@@ -3,6 +3,7 @@ import Foundation
 import LiveCaptionsCore
 import Speech
 import Testing
+
 @testable import LiveCaptionsSpeech
 
 private func sineChunks(count: Int, sampleRate: Double, seconds: Double, firstStart: TimeInterval) -> [AudioChunk] {
@@ -61,7 +62,8 @@ struct AnalyzerAudioConverterTests {
 
     @Test("audio already in the analyzer format passes through unchanged")
     func passthrough() throws {
-        let float16k = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+        let float16k = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
         let converter = AnalyzerAudioConverter(outputFormat: float16k)
         let chunks = sineChunks(count: 2, sampleRate: 16_000, seconds: 0.05, firstStart: 1)
         let first = try converter.convert(chunks[0])

@@ -4,7 +4,7 @@ import PackageDescription
 // The Swift 6 language mode is set explicitly, not left to the tools
 // version. Warnings fail the build, locally and in CI (docs/DECISIONS.md 0019).
 let strictSwiftSettings: [SwiftSetting] = [
-    .treatAllWarnings(as: .error),
+    .treatAllWarnings(as: .error)
 ]
 
 // Audio capture adapter code that can be tested without capture permissions
@@ -14,19 +14,19 @@ let strictSwiftSettings: [SwiftSetting] = [
 let package = Package(
     name: "AudioAdapter",
     platforms: [
-        .macOS(.v26),
+        .macOS(.v26)
     ],
     products: [
-        .library(name: "LiveCaptionsAudio", targets: ["LiveCaptionsAudio"]),
+        .library(name: "LiveCaptionsAudio", targets: ["LiveCaptionsAudio"])
     ],
     dependencies: [
-        .package(path: "../Core"),
+        .package(path: "../Core")
     ],
     targets: [
         .target(
             name: "LiveCaptionsAudio",
             dependencies: [
-                .product(name: "LiveCaptionsCore", package: "Core"),
+                .product(name: "LiveCaptionsCore", package: "Core")
             ],
             swiftSettings: strictSwiftSettings
         ),

@@ -56,17 +56,19 @@ public struct CaptionDemoScript: Sendable {
             let id = SegmentID(Self.demoUUID(index))
             for (revision, hypothesis) in utterance.hypotheses.enumerated() {
                 let line = CaptionLine(id: id, text: hypothesis, origin: origin, isFinal: false)
-                steps.append(Step(
-                    delay: revision == 0 ? utterance.pauseBefore : volatileInterval,
-                    snapshot: CaptionSnapshot(lines: Array(finals.suffix(keptFinals)) + [line])
-                ))
+                steps.append(
+                    Step(
+                        delay: revision == 0 ? utterance.pauseBefore : volatileInterval,
+                        snapshot: CaptionSnapshot(lines: Array(finals.suffix(keptFinals)) + [line])
+                    ))
             }
             let final = CaptionLine(id: id, text: utterance.final, origin: origin, isFinal: true)
             finals.append(final)
-            steps.append(Step(
-                delay: utterance.hypotheses.isEmpty ? utterance.pauseBefore : volatileInterval,
-                snapshot: CaptionSnapshot(lines: Array(finals.suffix(keptFinals)))
-            ))
+            steps.append(
+                Step(
+                    delay: utterance.hypotheses.isEmpty ? utterance.pauseBefore : volatileInterval,
+                    snapshot: CaptionSnapshot(lines: Array(finals.suffix(keptFinals)))
+                ))
         }
         self.init(steps: steps)
     }

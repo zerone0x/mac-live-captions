@@ -89,13 +89,14 @@ enum OverlaySnapshotRenderer {
     /// Increase Contrast and Reduce Transparency renders of `largeFontState`
     /// (`overlay-<name>-<state>.png`). The light-desktop pair shows the
     /// translucent pill at its worst case next to the opaque one.
-    static let accessibilityVariants: [(name: String, notch: Bool, options: OverlayDisplayOptions, lightDesktop: Bool)] = [
-        ("notch-increase-contrast", true, OverlayDisplayOptions(increaseContrast: true), false),
-        ("pill-increase-contrast", false, OverlayDisplayOptions(increaseContrast: true), false),
-        ("pill-reduce-transparency", false, OverlayDisplayOptions(reduceTransparency: true), false),
-        ("pill-light-desktop", false, .standard, true),
-        ("pill-reduce-transparency-light-desktop", false, OverlayDisplayOptions(reduceTransparency: true), true),
-    ]
+    static let accessibilityVariants:
+        [(name: String, notch: Bool, options: OverlayDisplayOptions, lightDesktop: Bool)] = [
+            ("notch-increase-contrast", true, OverlayDisplayOptions(increaseContrast: true), false),
+            ("pill-increase-contrast", false, OverlayDisplayOptions(increaseContrast: true), false),
+            ("pill-reduce-transparency", false, OverlayDisplayOptions(reduceTransparency: true), false),
+            ("pill-light-desktop", false, .standard, true),
+            ("pill-reduce-transparency-light-desktop", false, OverlayDisplayOptions(reduceTransparency: true), true),
+        ]
 
     private static func demoFrames() -> [(String, CaptionFrame)] {
         var composer = CaptionComposer()
@@ -151,7 +152,9 @@ enum OverlaySnapshotRenderer {
                 .frame(width: caption.width, height: panelHeight)
                 .padding(.top, style == .pill ? menuBarHeight + OverlayPlacement.pillGap : 0)
         }
-        .frame(width: sceneWidth, height: max(panelHeight, menuBarHeight + OverlayPlacement.pillGap + caption.height) + 40)
+        .frame(
+            width: sceneWidth, height: max(panelHeight, menuBarHeight + OverlayPlacement.pillGap + caption.height) + 40
+        )
         .environment(\.colorScheme, .dark)
     }
 

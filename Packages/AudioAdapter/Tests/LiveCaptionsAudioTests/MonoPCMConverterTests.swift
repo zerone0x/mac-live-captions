@@ -2,6 +2,7 @@ import AVFoundation
 import Foundation
 import LiveCaptionsCore
 import Testing
+
 @testable import LiveCaptionsAudio
 
 /// A non-interleaved Float32 buffer; `channel(c, frame)` gives each sample.
@@ -12,12 +13,13 @@ private func floatBuffer(
     firstFrame: Int = 0,
     _ channel: (Int, Int) -> Float
 ) throws -> AVAudioPCMBuffer {
-    let format = try #require(AVAudioFormat(
-        commonFormat: .pcmFormatFloat32,
-        sampleRate: sampleRate,
-        channels: AVAudioChannelCount(channels),
-        interleaved: false
-    ))
+    let format = try #require(
+        AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: sampleRate,
+            channels: AVAudioChannelCount(channels),
+            interleaved: false
+        ))
     let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)))
     buffer.frameLength = AVAudioFrameCount(frames)
     let data = try #require(buffer.floatChannelData)
@@ -37,12 +39,13 @@ private func int16InterleavedBuffer(
     firstFrame: Int,
     _ sample: (Int) -> Int16
 ) throws -> AVAudioPCMBuffer {
-    let format = try #require(AVAudioFormat(
-        commonFormat: .pcmFormatInt16,
-        sampleRate: sampleRate,
-        channels: AVAudioChannelCount(channels),
-        interleaved: true
-    ))
+    let format = try #require(
+        AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: AVAudioChannelCount(channels),
+            interleaved: true
+        ))
     let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)))
     buffer.frameLength = AVAudioFrameCount(frames)
     let data = try #require(buffer.int16ChannelData)
@@ -119,7 +122,9 @@ struct MonoPCMConverterTests {
         #expect(try converter.convert(buffer).isEmpty)
     }
 
-    @Test("stereo in 100 ms buffers is resampled to 16 kHz without losing frames between buffers", arguments: [48_000.0, 44_100.0])
+    @Test(
+        "stereo in 100 ms buffers is resampled to 16 kHz without losing frames between buffers",
+        arguments: [48_000.0, 44_100.0])
     func resamplesAcrossBuffers(rate: Double) throws {
         let converter = MonoPCMConverter()
         let samples = try convertOneSecond(converter, rate: rate, channels: 2) { _, frame in
@@ -185,7 +190,8 @@ struct MonoPCMConverterTests {
     func formatChangeAndReset() throws {
         let converter = MonoPCMConverter()
         let first = try convertOneSecond(converter, rate: 48_000, channels: 2) { _, frame in sine(frame, rate: 48_000) }
-        let second = try convertOneSecond(converter, rate: 44_100, channels: 1) { _, frame in sine(frame, rate: 44_100) }
+        let second = try convertOneSecond(converter, rate: 44_100, channels: 1) { _, frame in sine(frame, rate: 44_100)
+        }
         converter.reset()
         let third = try convertOneSecond(converter, rate: 48_000, channels: 2) { _, frame in sine(frame, rate: 48_000) }
         for samples in [first, second, third] {

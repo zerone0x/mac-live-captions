@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("Speech assets")
@@ -42,8 +43,9 @@ struct SpeechAssetTests {
 
     @Test("transcription errors describe themselves")
     func errorDescriptions() {
-        #expect(TranscriptionError.assetsNotReady(.notInstalled).description
-            == "The English speech model is not ready (English speech model not installed)")
+        #expect(
+            TranscriptionError.assetsNotReady(.notInstalled).description
+                == "The English speech model is not ready (English speech model not installed)")
         #expect(TranscriptionError.localeUnsupported(identifier: "en-US").description.contains("en-US"))
         #expect(TranscriptionError.audioConversionFailed("bad format").description.contains("bad format"))
     }
@@ -62,10 +64,11 @@ struct SpeechAssetTests {
 
         #expect(final == .ready)
         #expect(await assets.currentState() == .ready)
-        #expect(updates.values == [
-            .downloading(fractionCompleted: 0),
-            .downloading(fractionCompleted: 0.5),
-            .ready,
-        ])
+        #expect(
+            updates.values == [
+                .downloading(fractionCompleted: 0),
+                .downloading(fractionCompleted: 0.5),
+                .ready,
+            ])
     }
 }

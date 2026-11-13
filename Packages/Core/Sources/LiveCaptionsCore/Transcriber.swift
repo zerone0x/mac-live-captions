@@ -23,7 +23,8 @@ public struct TranscriptSegment: Sendable, Hashable, Identifiable {
     public var end: TimeInterval
     public var origin: AudioOrigin
 
-    public init(id: SegmentID = SegmentID(), text: String, start: TimeInterval, end: TimeInterval, origin: AudioOrigin) {
+    public init(id: SegmentID = SegmentID(), text: String, start: TimeInterval, end: TimeInterval, origin: AudioOrigin)
+    {
         precondition(end >= start, "segment end must not be before its start")
         self.id = id
         self.text = text

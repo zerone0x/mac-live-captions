@@ -3,6 +3,7 @@ import Foundation
 import LiveCaptionsCore
 import Speech
 import Testing
+
 @testable import LiveCaptionsSpeech
 
 /// Runs real English speech through `SpeechAnalyzer` + `SpeechTranscriber`.
@@ -56,7 +57,9 @@ struct RealAudioTranscriptionTests {
 
         let volatileCount = events.filter { !$0.isFinal }.count
         let finals = events.filter(\.isFinal).map(\.segment)
-        print("[real-audio] \(volatileCount) volatile and \(finals.count) final results; transcript: \(store.transcriptText)")
+        print(
+            "[real-audio] \(volatileCount) volatile and \(finals.count) final results; transcript: \(store.transcriptText)"
+        )
 
         // Recognised the words.
         let text = store.transcriptText.lowercased()
@@ -111,7 +114,9 @@ enum RealAudio {
 
         let supported = await SpeechTranscriber.supportedLocales
         let installedLocales = await SpeechTranscriber.installedLocales
-        log("SpeechTranscriber.isAvailable = \(SpeechTranscriber.isAvailable); supported locales: \(supported.count); installed locales: \(installedLocales.count)")
+        log(
+            "SpeechTranscriber.isAvailable = \(SpeechTranscriber.isAvailable); supported locales: \(supported.count); installed locales: \(installedLocales.count)"
+        )
         let assets = SystemSpeechAssets()
         var state = await assets.currentState()
         log("en-US speech model state before the test: \(state.statusText)")
@@ -150,7 +155,8 @@ enum RealAudio {
         process.arguments = ["-o", url.path(percentEncoded: false), text]
         try process.run()
         process.waitUntilExit()
-        guard process.terminationStatus == 0, FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else {
+        guard process.terminationStatus == 0, FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+        else {
             throw ClipError.sayFailed(status: process.terminationStatus)
         }
         return url

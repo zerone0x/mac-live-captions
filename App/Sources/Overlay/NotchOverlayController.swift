@@ -118,16 +118,18 @@ final class NotchOverlayController: CaptionPresenter {
     private func hide() {
         guard isShowing, let panel else { return }
         isShowing = false
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = Self.reduceMotion ? 0 : 0.3
-            panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
-                // A new caption may have arrived during the fade.
-                guard let self, !self.isShowing else { return }
-                self.panel?.orderOut(nil)
-            }
-        })
+        NSAnimationContext.runAnimationGroup(
+            { context in
+                context.duration = Self.reduceMotion ? 0 : 0.3
+                panel.animator().alphaValue = 0
+            },
+            completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    // A new caption may have arrived during the fade.
+                    guard let self, !self.isShowing else { return }
+                    self.panel?.orderOut(nil)
+                }
+            })
     }
 
     private static var reduceMotion: Bool {

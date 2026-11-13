@@ -33,9 +33,11 @@ struct SettingsView: View {
 
             Section("Screen sharing") {
                 Toggle("Hide overlay from screen sharing (best effort)", isOn: $model.settings.hideFromScreenSharing)
-                Text("Some apps still capture the overlay. To keep captions private, share a single window instead of the whole screen.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Some apps still capture the overlay. To keep captions private, share a single window instead of the whole screen."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
             Section("Shortcut") {

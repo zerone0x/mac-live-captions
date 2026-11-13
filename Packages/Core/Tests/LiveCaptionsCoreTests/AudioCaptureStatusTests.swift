@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("AudioCaptureStatus")
@@ -64,30 +65,34 @@ struct AudioCaptureStatusTests {
         #expect(status.statusText == "Audio capture failed: stream stopped")
     }
 
-    @Test("stop always returns to idle", arguments: [
-        AudioCaptureStatus.idle, .starting, .capturing, .noAudio,
-        .reconnecting(attempt: 3), .permissionDenied(.microphone), .failed(message: "x"),
-    ])
+    @Test(
+        "stop always returns to idle",
+        arguments: [
+            AudioCaptureStatus.idle, .starting, .capturing, .noAudio,
+            .reconnecting(attempt: 3), .permissionDenied(.microphone), .failed(message: "x"),
+        ])
     func stopFromAnywhere(status: AudioCaptureStatus) {
         #expect(status.applying(.stopped) == .idle)
     }
 
-    @Test("events that make no sense in a status are ignored", arguments: [
-        (AudioCaptureStatus.idle, AudioCaptureEvent.started),
-        (.idle, .silenceDetected),
-        (.idle, .interrupted(attempt: 1)),
-        (.idle, .failed("x")),
-        (.idle, .permissionDenied(.system)),
-        (.starting, .silenceDetected),
-        (.capturing, .startRequested),
-        (.capturing, .soundDetected),
-        (.capturing, .started),
-        (.noAudio, .silenceDetected),
-        (.reconnecting(attempt: 1), .silenceDetected),
-        (.failed(message: "x"), .started),
-        (.permissionDenied(.system), .started),
-        (.permissionDenied(.system), .failed("y")),
-    ])
+    @Test(
+        "events that make no sense in a status are ignored",
+        arguments: [
+            (AudioCaptureStatus.idle, AudioCaptureEvent.started),
+            (.idle, .silenceDetected),
+            (.idle, .interrupted(attempt: 1)),
+            (.idle, .failed("x")),
+            (.idle, .permissionDenied(.system)),
+            (.starting, .silenceDetected),
+            (.capturing, .startRequested),
+            (.capturing, .soundDetected),
+            (.capturing, .started),
+            (.noAudio, .silenceDetected),
+            (.reconnecting(attempt: 1), .silenceDetected),
+            (.failed(message: "x"), .started),
+            (.permissionDenied(.system), .started),
+            (.permissionDenied(.system), .failed("y")),
+        ])
     func ignoredEvents(status: AudioCaptureStatus, event: AudioCaptureEvent) {
         #expect(status.applying(event) == status)
     }

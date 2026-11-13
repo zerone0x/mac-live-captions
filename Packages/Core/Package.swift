@@ -4,16 +4,16 @@ import PackageDescription
 // The Swift 6 language mode is set explicitly, not left to the tools
 // version. Warnings fail the build, locally and in CI (docs/DECISIONS.md 0019).
 let strictSwiftSettings: [SwiftSetting] = [
-    .treatAllWarnings(as: .error),
+    .treatAllWarnings(as: .error)
 ]
 
 let package = Package(
     name: "Core",
     platforms: [
-        .macOS(.v26),
+        .macOS(.v26)
     ],
     products: [
-        .library(name: "LiveCaptionsCore", targets: ["LiveCaptionsCore"]),
+        .library(name: "LiveCaptionsCore", targets: ["LiveCaptionsCore"])
     ],
     targets: [
         .target(

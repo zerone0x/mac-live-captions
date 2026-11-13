@@ -151,7 +151,9 @@ private struct MenuStatusSnapshot: View {
             .padding(.bottom, 16)
         }
         .frame(width: 480)
-        .background(LinearGradient(colors: [Color(white: 0.6), Color(white: 0.4)], startPoint: .top, endPoint: .bottom))
+        .background(
+            LinearGradient(colors: [Color(white: 0.6), Color(white: 0.4)], startPoint: .top, endPoint: .bottom)
+        )
         .environment(\.colorScheme, .light)
     }
 

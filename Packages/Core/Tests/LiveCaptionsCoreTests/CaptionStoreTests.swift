@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 private func seg(
@@ -272,9 +273,9 @@ struct CaptionStoreTests {
             .volatile(seg(hello, "Hello the", 0, 0.9)),
             .final(seg(hello, "Hello there.", 0, 1.0)),
             .volatile(seg(world, "General", 1.2, 1.6)),
-            .volatile(seg(hello, "Hello again", 0, 1.0)), // late volatile for a final segment
+            .volatile(seg(hello, "Hello again", 0, 1.0)),  // late volatile for a final segment
             .final(seg(world, "General Kenobi.", 1.2, 2.0)),
-            .final(seg(world, "General Kenobi!", 1.2, 2.0)), // duplicate final
+            .final(seg(world, "General Kenobi!", 1.2, 2.0)),  // duplicate final
         ]
         let transcriber = ReplayTranscriber(events: events)
         let presenter = RecordingPresenter()
@@ -289,13 +290,14 @@ struct CaptionStoreTests {
         #expect(store.transcript.map(\.text) == ["Hello there.", "General Kenobi."])
         #expect(store.transcript.map(\.id) == [hello, world])
         let shown = presenter.snapshots.map { $0.lines.map(\.text) }
-        #expect(shown == [
-            ["Hel"],
-            ["Hello"],
-            ["Hello the"],
-            ["Hello there."],
-            ["Hello there.", "General"],
-            ["Hello there.", "General Kenobi."],
-        ])
+        #expect(
+            shown == [
+                ["Hel"],
+                ["Hello"],
+                ["Hello the"],
+                ["Hello there."],
+                ["Hello there.", "General"],
+                ["Hello there.", "General Kenobi."],
+            ])
     }
 }

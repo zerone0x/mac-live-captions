@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("Caption demo script")
@@ -57,7 +58,8 @@ struct CaptionDemoScriptTests {
             previous = frame
         }
         #expect(collapses == 1)
-        #expect(composer.frame.lines.map(\.text).joined(separator: " ")
-            == "And it comes back as soon as someone speaks again.")
+        #expect(
+            composer.frame.lines.map(\.text).joined(separator: " ")
+                == "And it comes back as soon as someone speaks again.")
     }
 }

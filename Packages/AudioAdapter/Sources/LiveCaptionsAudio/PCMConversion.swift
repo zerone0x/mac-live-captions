@@ -14,13 +14,13 @@ import LiveCaptionsCore
 /// system delivered something else).
 public func makePCMBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
     guard CMSampleBufferDataIsReady(sampleBuffer),
-          let description = CMSampleBufferGetFormatDescription(sampleBuffer),
-          let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(description),
-          let format = AVAudioFormat(streamDescription: streamDescription)
+        let description = CMSampleBufferGetFormatDescription(sampleBuffer),
+        let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(description),
+        let format = AVAudioFormat(streamDescription: streamDescription)
     else { return nil }
     let frames = CMSampleBufferGetNumSamples(sampleBuffer)
     guard frames > 0,
-          let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames))
     else { return nil }
     buffer.frameLength = AVAudioFrameCount(frames)
     let status = CMSampleBufferCopyPCMDataIntoAudioBufferList(
@@ -39,12 +39,14 @@ public final class MonoPCMConverter {
     private var converter: AVAudioConverter?
 
     public init() {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: CaptureFormat.sampleRate,
-            channels: 1,
-            interleaved: false
-        ) else {
+        guard
+            let format = AVAudioFormat(
+                commonFormat: .pcmFormatFloat32,
+                sampleRate: CaptureFormat.sampleRate,
+                channels: 1,
+                interleaved: false
+            )
+        else {
             preconditionFailure("16 kHz mono Float32 is always a valid format")
         }
         outputFormat = format
@@ -62,11 +64,12 @@ public final class MonoPCMConverter {
         }
 
         let converter = try converter(for: buffer.format)
-        let capacity = AVAudioFrameCount(CaptureFormat.convertedFrameCapacity(
-            inputFrames: Int(buffer.frameLength),
-            inputRate: buffer.format.sampleRate,
-            outputRate: outputFormat.sampleRate
-        ))
+        let capacity = AVAudioFrameCount(
+            CaptureFormat.convertedFrameCapacity(
+                inputFrames: Int(buffer.frameLength),
+                inputRate: buffer.format.sampleRate,
+                outputRate: outputFormat.sampleRate
+            ))
         let input = OneShotInput(buffer)
         var samples: [Float] = []
         while true {

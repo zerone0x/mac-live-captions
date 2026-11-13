@@ -45,10 +45,11 @@ final class AudioCaptureProbe {
         let onStatus: @Sendable (AudioCaptureStatus) -> Void = { status in
             statusUpdates.yield(status)
         }
-        let source: any AudioSource = switch origin {
-        case .system: SystemAudioSource(onStatus: onStatus)
-        case .microphone: MicrophoneAudioSource(onStatus: onStatus)
-        }
+        let source: any AudioSource =
+            switch origin {
+            case .system: SystemAudioSource(onStatus: onStatus)
+            case .microphone: MicrophoneAudioSource(onStatus: onStatus)
+            }
         self.source = source
         task = Task {
             do {

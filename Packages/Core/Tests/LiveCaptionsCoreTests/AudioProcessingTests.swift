@@ -1,26 +1,30 @@
 import Foundation
 import Testing
+
 @testable import LiveCaptionsCore
 
 @Suite("Audio processing")
 struct AudioProcessingTests {
     // MARK: Conversion math
 
-    @Test("converted capacity rounds up and adds headroom", arguments: [
-        // 48 kHz -> 16 kHz: 1024 frames -> 341.33 -> 342
-        (1_024, 48_000.0, 16_000.0, 342 + 64),
-        // 44.1 kHz -> 16 kHz: 441 frames -> exactly 160
-        (441, 44_100.0, 16_000.0, 160 + 64),
-        // same rate keeps the frame count
-        (1_600, 16_000.0, 16_000.0, 1_600 + 64),
-        // upsampling 8 kHz -> 16 kHz doubles
-        (100, 8_000.0, 16_000.0, 200 + 64),
-        (0, 48_000.0, 16_000.0, 64),
-    ])
+    @Test(
+        "converted capacity rounds up and adds headroom",
+        arguments: [
+            // 48 kHz -> 16 kHz: 1024 frames -> 341.33 -> 342
+            (1_024, 48_000.0, 16_000.0, 342 + 64),
+            // 44.1 kHz -> 16 kHz: 441 frames -> exactly 160
+            (441, 44_100.0, 16_000.0, 160 + 64),
+            // same rate keeps the frame count
+            (1_600, 16_000.0, 16_000.0, 1_600 + 64),
+            // upsampling 8 kHz -> 16 kHz doubles
+            (100, 8_000.0, 16_000.0, 200 + 64),
+            (0, 48_000.0, 16_000.0, 64),
+        ])
     func convertedCapacity(frames: Int, inputRate: Double, outputRate: Double, expected: Int) {
-        #expect(CaptureFormat.convertedFrameCapacity(
-            inputFrames: frames, inputRate: inputRate, outputRate: outputRate
-        ) == expected)
+        #expect(
+            CaptureFormat.convertedFrameCapacity(
+                inputFrames: frames, inputRate: inputRate, outputRate: outputRate
+            ) == expected)
     }
 
     @Test("capacity is never smaller than the converted frame count")
@@ -167,7 +171,7 @@ struct AudioProcessingTests {
         let reported: [AudioCaptureEvent] = events.compactMap { $0 }
         #expect(reported == [.silenceDetected])
         let index: Int? = events.firstIndex(of: .silenceDetected)
-        #expect(index == 9) // 10 x 0.1 s = 1 s after the last loud block
+        #expect(index == 9)  // 10 x 0.1 s = 1 s after the last loud block
         #expect(monitor.isSilent)
         #expect(monitor.process(loud, at: 1.3) == .soundDetected)
         #expect(monitor.process(loud, at: 1.4) == nil)

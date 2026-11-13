@@ -198,16 +198,17 @@ public struct CaptionComposer: Sendable {
         topLineNumber = top
 
         let visible = (top - firstLineNumber)..<min(top - firstLineNumber + maxLines, lines.count)
-        frame = CaptionFrame(lines: visible.map { index in
-            let range = lines[index]
-            let finalEnd = min(max(range.lowerBound, committed.count), range.upperBound)
-            let finalText = words[range.lowerBound..<finalEnd].joined(separator: " ")
-            var volatileText = words[finalEnd..<range.upperBound].joined(separator: " ")
-            if !finalText.isEmpty && !volatileText.isEmpty {
-                volatileText = " " + volatileText
-            }
-            return CaptionDisplayLine(id: firstLineNumber + index, finalText: finalText, volatileText: volatileText)
-        })
+        frame = CaptionFrame(
+            lines: visible.map { index in
+                let range = lines[index]
+                let finalEnd = min(max(range.lowerBound, committed.count), range.upperBound)
+                let finalText = words[range.lowerBound..<finalEnd].joined(separator: " ")
+                var volatileText = words[finalEnd..<range.upperBound].joined(separator: " ")
+                if !finalText.isEmpty && !volatileText.isEmpty {
+                    volatileText = " " + volatileText
+                }
+                return CaptionDisplayLine(id: firstLineNumber + index, finalText: finalText, volatileText: volatileText)
+            })
 
         // Drop finalized lines that scrolled out of view. Keep the last line
         // that holds finalized text: new final words may still join it. Because

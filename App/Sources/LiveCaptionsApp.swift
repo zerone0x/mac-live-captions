@@ -12,7 +12,8 @@ struct LiveCaptionsApp: App {
         let model = AppModel()
         // CI hook: render screenshots and quit (see `make screenshots`).
         if let directory = OverlaySnapshotRenderer.requestedDirectory() {
-            let failures = OverlaySnapshotRenderer.render(to: directory)
+            let failures =
+                OverlaySnapshotRenderer.render(to: directory)
                 + AppSnapshotRenderer.render(to: directory, model: model)
             exit(failures == 0 ? 0 : 1)
         }
