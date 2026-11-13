@@ -115,6 +115,10 @@ removing it).
       start by themselves when it finishes.
 - [ ] Stop during the download: the session ends; the menu keeps showing the
       download until it is done.
+- [ ] Start a download, then quit and reopen (or Relaunch from the welcome
+      window) while it runs, and click Start Captions. The menu shows the
+      download; captions start by themselves when it finishes, without
+      another click (DECISIONS 0021).
 - [ ] If the download fails (for example with Wi-Fi off), the menu shows the
       error and offers "Download English Speech Model" again, with or
       without a session.
