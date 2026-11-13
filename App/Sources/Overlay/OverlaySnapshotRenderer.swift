@@ -43,6 +43,27 @@ enum OverlaySnapshotRenderer {
                     }
                 }
             }
+            // Display accommodations (docs/DECISIONS.md, 0018) for the wrap
+            // state, which has both finalized and volatile text.
+            if name == largeFontState {
+                for variant in accessibilityVariants {
+                    let url = directory.appendingPathComponent("overlay-\(variant.name)-\(name).png")
+                    let style = variant.notch ? notch : OverlayStyle.pill
+                    let view = scene(
+                        frame: frame,
+                        style: style,
+                        metrics: OverlayMetrics(fontSize: .default),
+                        options: variant.options,
+                        lightDesktop: variant.lightDesktop
+                    )
+                    if write(view, to: url) {
+                        print("rendered \(url.path)")
+                    } else {
+                        print("failed to render \(url.path)")
+                        failures += 1
+                    }
+                }
+            }
             // The bottom position (Settings) for the wrap state.
             if name == largeFontState {
                 let url = directory.appendingPathComponent("overlay-bottom-\(name).png")
@@ -64,6 +85,17 @@ enum OverlaySnapshotRenderer {
 
     /// Also rendered with the extra large font (`overlay-*-xl-<state>.png`).
     static let largeFontState = "3-two-line-wrap-volatile"
+
+    /// Increase Contrast and Reduce Transparency renders of `largeFontState`
+    /// (`overlay-<name>-<state>.png`). The light-desktop pair shows the
+    /// translucent pill at its worst case next to the opaque one.
+    static let accessibilityVariants: [(name: String, notch: Bool, options: OverlayDisplayOptions, lightDesktop: Bool)] = [
+        ("notch-increase-contrast", true, OverlayDisplayOptions(increaseContrast: true), false),
+        ("pill-increase-contrast", false, OverlayDisplayOptions(increaseContrast: true), false),
+        ("pill-reduce-transparency", false, OverlayDisplayOptions(reduceTransparency: true), false),
+        ("pill-light-desktop", false, .standard, true),
+        ("pill-reduce-transparency-light-desktop", false, OverlayDisplayOptions(reduceTransparency: true), true),
+    ]
 
     private static func demoFrames() -> [(String, CaptionFrame)] {
         var composer = CaptionComposer()
@@ -92,20 +124,30 @@ enum OverlaySnapshotRenderer {
 
     /// The overlay on a strip of fake desktop with a menu bar, at the size the
     /// panel would have.
-    private static func scene(frame: CaptionFrame, style: OverlayStyle, metrics: OverlayMetrics) -> some View {
+    private static func scene(
+        frame: CaptionFrame,
+        style: OverlayStyle,
+        metrics: OverlayMetrics,
+        options: OverlayDisplayOptions = .standard,
+        lightDesktop: Bool = false
+    ) -> some View {
         let caption = metrics.captionSize(maxLines: CaptionComposer.Configuration.english.maxLines)
         let panelHeight = caption.height + style.topInset
         let menuBarHeight: CGFloat = 32
         let sceneWidth = max(760, caption.width + 80)
         return ZStack(alignment: .top) {
-            LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
+            if lightDesktop {
+                Color(white: 0.97)
+            } else {
+                LinearGradient(colors: [Color(white: 0.55), Color(white: 0.35)], startPoint: .top, endPoint: .bottom)
+            }
             Color(white: 0.85).frame(height: menuBarHeight)
             if case .notch(let notchWidth, let notchHeight) = style {
                 UnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8)
                     .fill(.black)
                     .frame(width: notchWidth, height: notchHeight)
             }
-            CaptionOverlayView(frame: frame, style: style, metrics: metrics)
+            CaptionOverlayView(frame: frame, style: style, metrics: metrics, displayOptions: options)
                 .frame(width: caption.width, height: panelHeight)
                 .padding(.top, style == .pill ? menuBarHeight + OverlayPlacement.pillGap : 0)
         }

@@ -36,12 +36,28 @@ struct OverlayMetrics: Equatable {
 }
 
 /// The caption overlay: finalized text in white, the volatile tail lighter.
+/// Follows Increase Contrast and Reduce Transparency through
+/// `OverlayAppearance` (docs/DECISIONS.md, 0018).
 struct CaptionOverlayView: View {
     let frame: CaptionFrame
     let style: OverlayStyle
     var metrics = OverlayMetrics()
+    /// Display options read from `NSWorkspace` by the controller (or forced
+    /// by the snapshot renderer). Combined with the SwiftUI environment, so
+    /// either source turns an option on.
+    var displayOptions: OverlayDisplayOptions = .standard
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var appearance: OverlayAppearance {
+        let environment = OverlayDisplayOptions(
+            increaseContrast: colorSchemeContrast == .increased,
+            reduceTransparency: reduceTransparency
+        )
+        return OverlayAppearance(options: displayOptions.union(environment))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -61,13 +77,23 @@ struct CaptionOverlayView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(background)
+        // VoiceOver: one static text element, label "Live captions", value
+        // the visible text. It is reachable (for example by Braille display
+        // users) but never announces itself: spoken announcements of every
+        // partial result would talk over the audio being captioned
+        // (docs/DECISIONS.md, 0018).
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(frame.lines.map(\.text).joined(separator: " ")))
+        .accessibilityLabel(Text("Live captions"))
+        .accessibilityValue(Text(frame.lines.map(\.text).joined(separator: " ")))
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
     private func lineText(_ line: CaptionDisplayLine) -> some View {
-        let finalPart = Text(line.finalText).foregroundStyle(.white)
-        let volatilePart = Text(line.volatileText).foregroundStyle(.white.opacity(0.5))
+        let appearance = appearance
+        let finalPart = Text(line.finalText).foregroundStyle(Color(appearance.finalText))
+        let volatilePart = Text(line.volatileText)
+            .italic(appearance.volatileIsItalic)
+            .foregroundStyle(Color(appearance.volatileText))
         return Text("\(finalPart)\(volatilePart)")
             .font(.system(size: metrics.fontSize, weight: .medium))
             .lineLimit(1)
@@ -85,10 +111,16 @@ struct CaptionOverlayView: View {
                 bottomTrailingRadius: metrics.cornerRadius,
                 style: .continuous
             )
-            .fill(.black)
+            .fill(Color(appearance.background(for: style)))
         case .pill:
             RoundedRectangle(cornerRadius: metrics.cornerRadius, style: .continuous)
-                .fill(.black.opacity(0.82))
+                .fill(Color(appearance.background(for: style)))
         }
+    }
+}
+
+extension Color {
+    init(_ color: OverlayColor) {
+        self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
     }
 }

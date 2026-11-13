@@ -479,3 +479,52 @@ Settings pickers) returns an opaque type chosen by OS version, which makes
 the binary call `__isPlatformVersionAtLeast`; that compiler-rt helper imports
 `dlsym`. The pickers now rely on `ForEach`'s implicit tags instead, and
 `dlsym` stays denied.
+
+## 0018: Overlay follows Increase Contrast and Reduce Transparency; VoiceOver exposure
+
+2026-11-13 · #27
+
+**Context.** The overlay followed Reduce Motion only. The volatile tail (the
+recogniser's current guess) differed from finalized text only by opacity
+(white at 0.5), and the pill was translucent (black at 0.82), so its contrast
+depended on the desktop behind it. Nothing told VoiceOver users more than the
+icon shape whether captions run.
+
+**Decision.**
+- `OverlayAppearance` in Core holds the overlay's colours and cues for a set
+  of `OverlayDisplayOptions`, and a Core test computes the WCAG contrast
+  ratios (pure colour math; a translucent pill is checked over a white and a
+  black desktop):
+
+  | Mode | Background | Final text | Volatile text |
+  | --- | --- | --- | --- |
+  | Standard, notch | opaque black | 21:1 | 5.28:1 (white 0.5) |
+  | Standard, pill | black 0.82, worst case white desktop | 13.6:1 | 4.62:1 |
+  | Reduce Transparency, pill | opaque black | 21:1 | 5.28:1 |
+  | Increase Contrast, both | opaque black | 21:1 | 11.45:1 (white 0.75, italic) |
+
+  Increase Contrast makes the pill opaque, raises the volatile tail to AAA
+  (at least 7:1) and sets it in italics, so it is told apart by shape and not
+  only by brightness (WCAG 1.4.1). Reduce Transparency makes the pill opaque.
+  The standard look is unchanged; italics stay off there to keep the default
+  calm, and its worst case still passes AA (4.5:1).
+- The app reads the options from `NSWorkspace` (re-read on
+  `accessibilityDisplayOptionsDidChangeNotification`) and from the SwiftUI
+  environment (`colorSchemeContrast`, `accessibilityReduceTransparency`);
+  either turns an option on. CI renders the wrap state with each option
+  (`overlay-*-increase-contrast-*`, `overlay-pill-reduce-transparency-*`,
+  and a light-desktop pair).
+- The status item's VoiceOver label is "LiveCaptions, <status line>" and its
+  value is the status detail. The state is in the label because not every
+  host of a menu bar item reads the value.
+- The overlay stays exposed to VoiceOver as one static text element (label
+  "Live captions", value the visible text, trait "updates frequently"), and it
+  never posts announcements. Hiding it would cut out Braille display users,
+  who may rely on captions; announcing every partial result would talk over
+  the audio being captioned, which VoiceOver users hear anyway.
+
+**Consequences.** Whether VoiceOver can reach the click-through,
+non-activating panel at all, and whether `MenuBarExtra` passes the label and
+value to the status item, can only be checked on a Mac (`docs/TESTING.md`,
+Accessibility). The notch style is opaque in every mode. The overlay's
+colours change only in `OverlayAppearance`, so the contrast test covers them.
