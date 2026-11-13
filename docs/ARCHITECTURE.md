@@ -5,20 +5,24 @@ English captions of the audio your Mac plays. Speech recognition runs on
 device (Apple `SpeechAnalyzer` + `SpeechTranscriber`, en-US). No network calls
 in the caption path.
 
-Background: [PRD.md](../PRD.md), [docs/research/](research/). Decisions and
-their reasons: [DECISIONS.md](DECISIONS.md).
+What the product does and does not do is [SCOPE.md](SCOPE.md), the source of
+truth for the current scope. Decisions and their reasons:
+[DECISIONS.md](DECISIONS.md). Background only: [research/](research/) and the
+original long-term vision in [PRD.md](../PRD.md) (Chinese), whose summaries,
+translation and microphone labelling are not part of the current scope.
 
 ## Pipeline
 
 ```
 AudioSource ──AudioChunk──▶ Transcriber ──TranscriptEvent──▶ CaptionStore ──CaptionSnapshot──▶ Overlay
- (system audio,                (SpeechAnalyzer,               (volatile vs final,               (notch overlay,
-  later mic)                    en-US, on device)              transcript, idle hide)            CaptionPresenter)
+ (system audio;                (SpeechAnalyzer,               (volatile vs final,               (CaptionComposer: 2×42 layout,
+  mic only in the               en-US, on device)              transcript)                       idle collapse; notch panel)
+  debug capture test)
 ```
 
 | Stage | Contract (Core) | Real implementation | Lives in | Wave |
 |---|---|---|---|---|
-| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>`; `AudioCaptureStatus` state machine, `AudioChunkAssembler`, `SilenceMonitor` | `SystemAudioSource` (ScreenCaptureKit), `MicrophoneAudioSource` (opt-in, off by default) | App (`Sources/Audio/`), Core (logic) | #7 |
+| AudioSource | `protocol AudioSource` → `AsyncThrowingStream<AudioChunk, Error>`; `AudioCaptureStatus` state machine, `AudioChunkAssembler`, `SilenceMonitor` | `SystemAudioSource` (ScreenCaptureKit); `MicrophoneAudioSource` (used only by the debug capture test) | App (`Sources/Audio/`), Core (logic) | #7 |
 | Transcriber | `protocol Transcriber` → `AsyncThrowingStream<TranscriptEvent, Error>`; `SegmentTracker` (stable IDs), `AudioTimeline` | `SpeechAnalyzerTranscriber` (`SpeechAnalyzer` + `SpeechTranscriber`, en-US) | SpeechAdapter package (adapter), Core (logic) | #8 |
 | Speech model | `protocol SpeechAssetProvider`, `SpeechAssetState` | `SystemSpeechAssets` (`AssetInventory`) | SpeechAdapter package, Core | #8 |
 | CaptionStore | `struct CaptionStore`, pure logic | n/a (no platform code) | Core | #8 |
@@ -100,7 +104,8 @@ Packages/AudioAdapter/    local Swift package, product LiveCaptionsAudio (DECISI
   Tests/LiveCaptionsAudioTests/   converter tests
 project.yml               XcodeGen spec (the .xcodeproj is generated, not committed)
 Makefile                  the commands CI runs
-scripts/                  CI helpers (offline check, bundle verification)
+scripts/                  CI checks (offline sources, dependencies, linked frameworks,
+                          bundle verification) and their self-tests and fixtures
 ```
 
 Rules:
@@ -184,7 +189,15 @@ run `swift test --package-path Packages/Core`, and expect a failure.
   no `get-task-allow`, stripped binary) and zips the app. It is meant for
   Release builds; `scripts/verify-app-selftest.sh` checks that it rejects bad
   bundles.
-- `.github/workflows/ci.yml` runs `check-offline`, `test` (all packages), `package` and
-  `check-linked-frameworks` on a
-  `macos-26` runner for every PR and push to `main`, and uploads the zip as a
-  workflow artifact.
+- `make screenshots` runs the built app with `--render-overlay-snapshots` and
+  writes PNG renders of fixed overlay states to `build/screenshots`
+  (`OverlaySnapshotRenderer` in `App/Sources/Overlay/`).
+- `.github/workflows/ci.yml` runs on a `macos-26` runner for every PR and push
+  to `main`, in this order: `make check-offline`,
+  `scripts/check-offline-selftest.sh`, `make test` (all packages),
+  `scripts/verify-app-selftest.sh`, `make package`,
+  `make check-linked-frameworks`, then `make screenshots`. It uploads two
+  artifacts, kept for 14 days: `LiveCaptions-<sha>` (the zipped app) and
+  `overlay-screenshots-<sha>` (the PNGs). `<sha>` is the PR head commit, or
+  the pushed commit on `main`. The README ("Try a CI build") says how to
+  download them.
