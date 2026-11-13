@@ -7,9 +7,10 @@ DERIVED  := build/DerivedData
 APP      := $(DERIVED)/Build/Products/$(CONFIG)/LiveCaptions.app
 ZIP      := build/LiveCaptions.zip
 SHOTS    := build/screenshots
+REFS     := scripts/fixtures/screenshots
 LIVE     := build/live-screenshots
 
-.PHONY: all generate test test-core test-audio test-speech build package verify screenshots live-screenshots check-offline check-linked-frameworks open clean
+.PHONY: all generate test test-core test-audio test-speech build package verify screenshots compare-screenshots record-screenshots live-screenshots check-offline check-linked-frameworks open clean
 
 all: check-offline test build
 
@@ -60,6 +61,17 @@ verify:
 screenshots:
 	rm -rf $(SHOTS)
 	$(APP)/Contents/MacOS/LiveCaptions --render-overlay-snapshots $(SHOTS)
+
+## After `make screenshots`: compare the overlay renders with the committed
+## references (small tolerance; a failing image gets a *.diff.png).
+compare-screenshots:
+	swift scripts/compare-screenshots.swift $(REFS) $(SHOTS)
+
+## Replace the overlay references with the renders from `make screenshots`
+## (or from a CI artifact: SHOTS=<downloaded dir>). Look at them first.
+record-screenshots:
+	rm -f $(REFS)/overlay-*.png
+	cp $(SHOTS)/overlay-*.png $(REFS)/
 
 ## Screenshots of the running app with the demo captions (needs a GUI session
 ## and Screen Recording for the terminal; CI runners have both).

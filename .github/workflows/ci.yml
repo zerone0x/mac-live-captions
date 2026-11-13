@@ -70,7 +70,18 @@ jobs:
         timeout-minutes: 3
         run: make screenshots
 
+      # Overlay renders were byte-identical across runners; a change beyond
+      # the tolerance fails here (docs/TESTING.md, "Reference images").
+      - name: Self-test the screenshot compare
+        timeout-minutes: 3
+        run: scripts/compare-screenshots-selftest.sh
+
+      - name: Compare overlay screenshots with the references
+        timeout-minutes: 3
+        run: make compare-screenshots
+
       - name: Upload rendered screenshots
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6
         with:
           name: overlay-screenshots-${{ github.event.pull_request.head.sha || github.sha }}
