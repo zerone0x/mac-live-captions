@@ -33,9 +33,15 @@ mkdir -p "$out"
 # two-line state, and the next pass of the repeating demo.
 shots=(3 7 12)
 
+# The main screen's size in points, for the top strip. Read before the
+# launch: compiling the helper takes a few seconds.
+read -r screen_width screen_height < <(swift "$script_dir/screen-info.swift" size)
+echo "main screen: ${screen_width}x${screen_height} points"
+
 # Started directly (not with `open`), so the app is a child of this step.
 "$binary" --demo-captions >"$out/app.log" 2>&1 &
 app_pid=$!
+launched=$SECONDS
 cleanup() {
   if kill -0 "$app_pid" 2>/dev/null; then
     kill "$app_pid"
@@ -44,14 +50,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The main screen's size in points, for the top strip.
-read -r screen_width screen_height < <(swift "$script_dir/screen-info.swift" size)
-echo "main screen: ${screen_width}x${screen_height} points"
-
-elapsed=0
 for shot in "${shots[@]}"; do
-  sleep $((shot - elapsed))
-  elapsed=$shot
+  # Shots are timed from the launch; listing windows takes a moment too.
+  wait_for=$((launched + shot - SECONDS))
+  if (( wait_for > 0 )); then
+    sleep "$wait_for"
+  fi
   if ! kill -0 "$app_pid" 2>/dev/null; then
     echo "error: LiveCaptions exited before the ${shot}s screenshot; app.log:" >&2
     cat "$out/app.log" >&2

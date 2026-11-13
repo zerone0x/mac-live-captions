@@ -80,6 +80,19 @@ jobs:
 
       # The runner agent holds Screen Recording, so screencapture from a step
       # sees the app's windows (docs/TESTING.md, "Screenshots from CI").
+      # The runner's desktop is black, like the overlay pill; a grey one
+      # makes the pill's outline visible.
+      - name: Use a grey desktop picture
+        timeout-minutes: 2
+        run: |
+          picture="/System/Library/Desktop Pictures/Solid Colors/Silver.png"
+          if [[ ! -f "$picture" ]]; then
+            ls "/System/Library/Desktop Pictures/Solid Colors/"
+            echo "error: $picture is missing" >&2
+            exit 1
+          fi
+          osascript -e "tell application \"System Events\" to tell every desktop to set picture to POSIX file \"$picture\""
+
       - name: Screenshot the running app with demo captions
         timeout-minutes: 5
         run: make live-screenshots
