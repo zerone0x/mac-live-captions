@@ -1,3 +1,5 @@
+> **Note:** This is the original long-term vision, kept as background only; the current product scope is [docs/SCOPE.md](docs/SCOPE.md).
+
 # PRD：Mac 实时字幕与会中补进度
 
 状态：草案 · 2026-11-13

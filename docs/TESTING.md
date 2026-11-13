@@ -80,6 +80,21 @@ removing it).
       app; note which ones.
 - [ ] Settings survive a relaunch.
 
+## Accessibility
+
+Use "Preview with Demo Captions" with System Settings > Accessibility >
+Display open next to it (decision 0018).
+
+- [ ] Increase contrast on: the pill turns opaque black, the tentative words
+      get brighter and italic. Turning it off while captions run goes back
+      without a relaunch.
+- [ ] Reduce transparency on: the pill turns opaque; the text looks as usual.
+- [ ] VoiceOver: the menu-bar item is read as "LiveCaptions, Not listening",
+      then "LiveCaptions, Listening" after Start Captions.
+- [ ] VoiceOver: the overlay never speaks on its own. If the VoiceOver cursor
+      can reach it (it ignores the mouse), it reads "Live captions" and the
+      visible text. Note whether it is reachable at all.
+
 ## Privacy
 
 - [ ] After a session, nothing new is in `~/Library/Containers`,

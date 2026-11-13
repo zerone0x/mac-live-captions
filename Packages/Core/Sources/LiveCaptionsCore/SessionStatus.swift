@@ -46,6 +46,16 @@ public struct SessionStatus: Sendable, Hashable {
     /// listening.
     public var isListening: Bool { indicator == .listening }
 
+    /// VoiceOver label of the menu bar item: the app name and the status line,
+    /// for example "LiveCaptions, Listening". The icon alone (filled or not)
+    /// says nothing to VoiceOver, so the state is in the label itself rather
+    /// than only in the value, which some status item hosts do not read.
+    public var accessibilityLabel: String { "LiveCaptions, \(text)" }
+
+    /// VoiceOver value of the menu bar item: the second line (what to do
+    /// next), or empty.
+    public var accessibilityValue: String { detail ?? "" }
+
     /// Builds the status.
     ///
     /// - Parameters:
