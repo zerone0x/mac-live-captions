@@ -5,6 +5,24 @@ of its GitHub Release (`scripts/release-notes.sh`, `docs/DECISIONS.md` 0023).
 Versions follow [Semantic Versioning](https://semver.org); the version in
 `project.yml` (`MARKETING_VERSION`) must match the release tag.
 
+## [0.1.1]
+
+A fix for the first real-Mac report.
+
+### Fixed
+
+- **Captions no longer stop with "Error: Audio input timestamp overlaps or
+  precedes prior audio input"** after running for a while (#48). Audio time
+  sent to the speech recognizer is now counted in whole samples, and every
+  input is checked so it never starts before the previous one ends. If the
+  recognizer still fails, a new one continues on the same audio, at most 3
+  times per 5 minutes of audio; after that captions stop with a clear message.
+
+### Changed
+
+- The README install steps are now one copy-paste block that downloads the
+  release first (#47).
+
 ## [0.1.0]
 
 The first release: live English captions of the audio your Mac plays, shown
