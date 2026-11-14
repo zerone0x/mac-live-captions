@@ -57,6 +57,18 @@ expect 124 5 "with-timeout: a child holding the output pipe is killed" \
   captured 1 sh -c 'sleep 60 & echo started; wait'
 expect 0 5 "with-timeout: a finished command's leftover child does not block" \
   captured 30 sh -c '(trap "" TERM; sleep 60) & echo started'
+
+# The command leads a process group of its own, not the wrapper's (#51): it
+# prints its pid, its group and its parent's (the wrapper's) group.
+own_group() {
+  local out pid pgid parent_pgid
+  out="$(captured 10 perl -e 'print "$$ ", getpgrp(0), " ", getpgrp(getppid()), "\n"')" || return 1
+  read -r pid pgid parent_pgid <<<"$out"
+  echo "command pid '$pid', group '$pgid', wrapper's group '$parent_pgid'"
+  [[ "$pid" =~ ^[0-9]+$ && "$pgid" =~ ^[0-9]+$ && "$parent_pgid" =~ ^[0-9]+$ ]] || return 1
+  [[ "$pgid" == "$pid" && "$pgid" != "$parent_pgid" ]] || return 1
+}
+expect 0 5 "with-timeout: the command runs in its own process group" own_group
 expect 2 5 "with-timeout: a zero limit is a usage error" "$timeout_sh" 0 true
 expect 2 5 "with-timeout: a missing command is a usage error" "$timeout_sh" 10
 
