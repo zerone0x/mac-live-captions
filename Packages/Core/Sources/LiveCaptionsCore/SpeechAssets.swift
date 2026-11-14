@@ -83,6 +83,9 @@ public enum TranscriptionError: Error, Sendable, Hashable, CustomStringConvertib
     case noCompatibleAudioFormat
     /// Converting captured audio for the analyzer failed.
     case audioConversionFailed(String)
+    /// The analyzer kept failing after the restarts `AnalyzerRestartBudget`
+    /// allows (DECISIONS 0024).
+    case analyzerStopped(restarts: Int, reason: String)
 
     public var description: String {
         switch self {
@@ -96,6 +99,8 @@ public enum TranscriptionError: Error, Sendable, Hashable, CustomStringConvertib
             "The speech model reported no usable audio format"
         case .audioConversionFailed(let reason):
             "Audio conversion failed: \(reason)"
+        case .analyzerStopped(let restarts, let reason):
+            "Speech recognition stopped after \(restarts) restarts (\(reason)). Turn captions off and on again"
         }
     }
 }

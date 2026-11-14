@@ -668,3 +668,46 @@ The app still called itself 0.0.1.
 quarantine flag with `xattr` (README, Install), and macOS may ask for
 permissions again after each update because the ad-hoc signature changes. Tags
 with a suffix (`v0.2.0-rc1`) are rejected until a decision allows them.
+
+## 0024: Analyzer input time in whole frames; bounded analyzer restarts
+
+2026-11-14 · #48
+
+**Context.** On a real Mac, v0.1.0 captions ran for a while and then stopped
+with "Audio input timestamp overlaps or precedes prior audio input".
+`AudioTimeline` kept output time as `Double` seconds
+(`anchor + outputFrames / sampleRate`) and the transcriber turned each start
+into `CMTime(seconds:preferredTimescale:)`. A start computed that way can land
+one sample before the previous input's end: for 100 ms chunks at 16 kHz the
+first such start is the chunk at 32.3 s (`516800 / 16000` is one ulp below
+32.3), and 46 chunks in the first 10 minutes are like it. Re-anchors after a
+gap compared and rounded `Double` seconds the same way. Nothing checked the
+start against the real end (start + `frameLength`) of the input before.
+
+**Decision.**
+- Analyzer time is an integer frame index at the analyzer's sample rate, end
+  to end. `AudioTimeline(sampleRate:)` (Core) places buffers by their real
+  `frameLength`; a re-anchor rounds the chunk's start to a frame once and
+  never goes before the end of placed audio. The adapter builds
+  `CMTime(value: frame, timescale: sampleRate)`; no seconds-to-`CMTime`
+  rounding remains.
+- `MonotonicInputGuard` (Core) is the last check before an `AnalyzerInput` is
+  yielded: an input that would start before the previous end is moved to that
+  end. It counts such moves; tests require 0, so the guard is a backstop and
+  not the fix.
+- If the analyzer still fails mid-session, the transcriber starts a new
+  `SpeechAnalyzer` on the same audio stream and the same time axis and keeps
+  captioning. `AnalyzerRestartBudget` allows at most 3 restarts within 300 s
+  of session audio; one more failure ends the session with
+  `TranscriptionError.analyzerStopped`, whose message says how many restarts
+  were tried and to turn captions off and on. A failure after the audio has
+  ended (Stop) is reported, not restarted.
+- The timing math lives in Core and is tested on Linux: jitter, re-anchors,
+  gaps around the tolerance, non-integer anchors, 44.1/48 kHz to 16 kHz, a
+  one-hour session and randomized sequences with fixed seeds.
+
+**Consequences.** A restart is not shown in the menu (it takes a moment and
+captions continue); the phrase that was being recognized when the analyzer
+failed can be lost. A repeating failure shows a clear error instead of
+looping. The restart path needs a real `SpeechAnalyzer` and is checked by the
+owner on a Mac, not on CI.
