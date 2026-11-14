@@ -4,7 +4,7 @@ Live English captions for any audio on your Mac, shown near the notch.
 Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
 are fast and nothing leaves your Mac.
 
-Status: v0.1.0, the first release ([CHANGELOG.md](CHANGELOG.md); to install
+Status: v0.1.1 ([CHANGELOG.md](CHANGELOG.md); to install
 it, see [Install](#install)). The current scope, what the app does and what
 it does not do yet, is [docs/SCOPE.md](docs/SCOPE.md): English live captions
 of system audio, on device, no translation and no summaries.
@@ -37,33 +37,35 @@ Requirements: Apple Silicon Mac, macOS 26 or later.
 
 Needs an Apple Silicon Mac with macOS 26 or later.
 
+Copy-paste install (downloads into `~/Downloads`; replace the version with the
+[latest release](https://github.com/zerone0x/mac-live-captions/releases/latest)
+if it is newer):
+
+```sh
+V=0.1.1
+cd ~/Downloads
+curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip"
+curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip.sha256"
+shasum -a 256 -c "LiveCaptions-$V.zip.sha256"   # must print "LiveCaptions-$V.zip: OK"
+ditto -x -k "LiveCaptions-$V.zip" .
+osascript -e 'quit app "LiveCaptions"' 2>/dev/null
+rm -rf /Applications/LiveCaptions.app && mv LiveCaptions.app /Applications/
+xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
+open /Applications/LiveCaptions.app
+```
+
+What these steps do:
+
 1. Download `LiveCaptions-<version>.zip` and `LiveCaptions-<version>.zip.sha256`
-   from the [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest).
-   The release notes are the matching section of [CHANGELOG.md](CHANGELOG.md).
-2. In Terminal, in the folder with the two files, check the zip. It must print
-   `LiveCaptions-<version>.zip: OK`; if it does not, delete the zip and do not
-   open it.
-
-   ```sh
-   shasum -a 256 -c LiveCaptions-0.1.0.zip.sha256
-   ```
-
-3. Unzip it (or double-click it in Finder) and move the app to Applications:
-
-   ```sh
-   ditto -x -k LiveCaptions-0.1.0.zip .
-   mv LiveCaptions.app /Applications/
-   ```
-
+   from the release. The release notes are the matching section of
+   [CHANGELOG.md](CHANGELOG.md).
+2. Check the zip. `shasum` must print `LiveCaptions-<version>.zip: OK`; if it
+   does not, delete the zip and do not open it.
+3. Unzip it and move the app to Applications, replacing an older copy (quit
+   the running app first).
 4. The app is ad-hoc signed and not notarized (there is no Apple Developer ID
    yet), so Gatekeeper blocks it as downloaded ("cannot be opened" or "is
-   damaged"). Clear the quarantine flag, then open it:
-
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
-   open /Applications/LiveCaptions.app
-   ```
-
+   damaged"). `xattr` clears the quarantine flag; then open it.
 5. First run. The app has no Dock icon: look for the captions icon in the menu
    bar. The welcome window (also in the menu as **Welcome and Setup…**) walks
    through two things:
