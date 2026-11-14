@@ -7,22 +7,33 @@ import LiveCaptionsCore
 ///
 /// `SpeechAnalyzer` "does not transparently upsample, downsample, or convert
 /// audio input" (Apple docs), and `AnalyzerInputConverter` needs macOS 27, so
-/// this uses `AVAudioConverter`. Times come from `AudioTimeline` (Core).
+/// this uses `AVAudioConverter`. Times come from `AudioTimeline` (Core) as
+/// whole frames at the analyzer's sample rate, never as rounded seconds
+/// (issue #48, DECISIONS 0024).
 ///
 /// Not thread-safe; one instance per transcription run.
 final class AnalyzerAudioConverter {
     struct TimedBuffer {
         let buffer: AVAudioPCMBuffer
-        /// Session seconds of the first frame.
-        let startTime: TimeInterval
+        /// Session frame index of the first frame, at `sampleRate`.
+        let startFrame: Int64
+        let sampleRate: Int
+
+        /// Session seconds of the first frame (tests and display only).
+        var startTime: TimeInterval { SampleTime.seconds(ofFrame: startFrame, sampleRate: sampleRate) }
     }
 
     let outputFormat: AVAudioFormat
+    /// The analyzer's sample rate as whole frames per second: the time scale
+    /// of every `AnalyzerInput`.
+    let sampleRate: Int
     private var converter: AVAudioConverter?
-    private var timeline = AudioTimeline()
+    private var timeline: AudioTimeline
 
     init(outputFormat: AVAudioFormat) {
         self.outputFormat = outputFormat
+        self.sampleRate = max(1, Int(outputFormat.sampleRate.rounded()))
+        self.timeline = AudioTimeline(sampleRate: sampleRate)
     }
 
     /// Converts one chunk. May return no buffer while the resampler fills up.
@@ -37,6 +48,10 @@ final class AnalyzerAudioConverter {
 
         let output: AVAudioPCMBuffer
         if input.format == outputFormat {
+            // Frames a resampler for another input format still holds belong
+            // to audio before this chunk; drop them rather than emit them
+            // later at a wrong time.
+            converter = nil
             output = input
         } else {
             output = try resample(input, endOfStream: false)
@@ -54,8 +69,10 @@ final class AnalyzerAudioConverter {
 
     private func place(_ buffer: AVAudioPCMBuffer) -> [TimedBuffer] {
         guard buffer.frameLength > 0 else { return [] }
-        let start = timeline.place(frames: Int(buffer.frameLength), sampleRate: outputFormat.sampleRate)
-        return [TimedBuffer(buffer: buffer, startTime: start)]
+        // The frame count placed is the buffer's own `frameLength`, so the
+        // next start is exactly this buffer's end.
+        let start = timeline.place(frames: Int(buffer.frameLength))
+        return [TimedBuffer(buffer: buffer, startFrame: start, sampleRate: sampleRate)]
     }
 
     private func resample(_ input: AVAudioPCMBuffer?, endOfStream: Bool) throws -> AVAudioPCMBuffer {

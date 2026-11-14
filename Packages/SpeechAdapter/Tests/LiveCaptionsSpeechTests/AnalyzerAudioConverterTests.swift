@@ -1,4 +1,5 @@
 @preconcurrency import AVFoundation
+import CoreMedia
 import Foundation
 import LiveCaptionsCore
 import Speech
@@ -91,6 +92,38 @@ struct AnalyzerAudioConverterTests {
         let buffers = try converter.convert(sineChunks(count: 1, sampleRate: 44_100, seconds: 0.1, firstStart: 0.1)[0])
         let frames = buffers.reduce(0) { $0 + Int($1.buffer.frameLength) }
         #expect(frames > 0 && frames <= 1_700)
+    }
+
+    // Issue #48: the chunk at 32.3 s used to become CMTime(seconds:) of a
+    // Double one ulp below 32.3, i.e. one sample before the previous end.
+    @Test("analyzer inputs get exact frame start times that never overlap", arguments: [16_000.0, 48_000.0, 44_100.0])
+    func analyzerInputsAreSampleExact(rate: Double) throws {
+        let feeder = InputFeeder(converter: AnalyzerAudioConverter(outputFormat: int16Mono16k()))
+        var inputs: [(buffer: AVAudioPCMBuffer, start: CMTime)] = []
+        // 40 s of 100 ms chunks stamped like AudioChunkAssembler stamps them,
+        // then a pause (a gap) and more audio.
+        let frames = Int(rate / 10)
+        for index in 0..<450 {
+            let offset = index < 400 ? index : index + 30
+            let samples = [Float](repeating: 0.1, count: frames)
+            let chunk = AudioChunk(
+                samples: samples, sampleRate: rate, origin: .system,
+                startTime: Double(offset * frames) / rate
+            )
+            inputs += feeder.admit(try feeder.convert(chunk))
+        }
+        inputs += feeder.admit(try feeder.flush())
+
+        #expect(inputs.count > 400)
+        #expect(inputs.allSatisfy { $0.start.timescale == 16_000 })
+        for (previous, next) in zip(inputs, inputs.dropFirst()) {
+            let previousEnd = previous.start.value + CMTimeValue(previous.buffer.frameLength)
+            #expect(next.start.value >= previousEnd)
+        }
+        if rate == 16_000 {
+            #expect(inputs[323].start == CMTime(value: 516_800, timescale: 16_000))
+        }
+        #expect(feeder.shiftedInputs == 0)
     }
 }
 

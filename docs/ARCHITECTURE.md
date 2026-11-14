@@ -175,7 +175,7 @@ invariant in the source makes the named test fail. Tests are in
 | Store transcript and final-ID memory are bounded; finals are immutable | CaptionStore: "history is bounded: the oldest finalized segments are dropped", "remembered final IDs are bounded too", "finalized segments are immutable: later finals and volatiles are ignored" |
 | The open phrase's start only moves back; the fallback start (`lastEnd`) only grows | SegmentTracker: "the open phrase's start follows the earliest volatile result", "a later volatile result with a later start does not move the open phrase's start forward", "a late final for an earlier phrase does not move the fallback start back" |
 | A volatile update one full interval after the last one is shown at once | CaptionUpdateThrottle: "a volatile update exactly one interval after the last one is shown at once" |
-| A timeline mismatch up to the tolerance is contiguous; output times never decrease | AudioTimeline: "a mismatch of exactly the tolerance is still contiguous", "output start times never decrease, whatever the input times" |
+| A timeline mismatch up to the tolerance is contiguous; analyzer inputs are whole frames and never overlap (#48, DECISIONS 0024) | AudioTimeline: "a mismatch of exactly the tolerance is still contiguous", "the chunk at 32.3 s starts exactly at frame 516800", "randomized sessions never feed an overlapping input"; MonotonicInputGuard; AnalyzerRestartBudget |
 
 Run the mutation check again when you change one of these types: mutate the
 line, wipe `.build` (incremental Linux builds can keep a stale object file),
