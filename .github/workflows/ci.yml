@@ -29,6 +29,28 @@ jobs:
           swift --version
           swift test --package-path Packages/Core
 
+  # The one-line installer (docs/DECISIONS.md 0027): shellcheck, then the
+  # self-test against a fake release. The macOS job runs the self-test again
+  # with macOS's /bin/bash 3.2, ditto and xattr.
+  installer-linux:
+    name: Installer checks (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Shellcheck the installer
+        run: |
+          set -euo pipefail
+          # Preinstalled on ubuntu-latest; otherwise from PyPI.
+          command -v shellcheck || pipx install shellcheck-py
+          shellcheck --version
+          shellcheck scripts/install.sh scripts/install-selftest.sh
+
+      - name: Self-test the installer
+        timeout-minutes: 5
+        run: scripts/install-selftest.sh
+
   build-and-test:
     name: Build and test (macOS 26, Apple Silicon)
     runs-on: macos-26
@@ -77,6 +99,10 @@ jobs:
       # Also fails if project.yml's version has no CHANGELOG.md section.
       - name: Self-test the release checks
         run: scripts/release-selftest.sh
+
+      - name: Self-test the one-line installer
+        timeout-minutes: 5
+        run: scripts/install-selftest.sh
 
       # make build pipes xcodebuild into xcbeautify; prove that a failing
       # xcodebuild still fails the target (pipefail).

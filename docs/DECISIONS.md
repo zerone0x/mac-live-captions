@@ -809,3 +809,68 @@ copied app, so the DMG path in README, Install keeps the
 dmgbuild install. That is a build-machine dependency only: nothing is added
 to the app, and the offline and dependency checks are unchanged. A custom
 background image (an arrow) can be added to the same layout later.
+
+## 0027: One-line installer script
+
+2026-11-15 · #60
+
+**Context.** Installing by hand takes a download, a checksum check, a move to
+/Applications, quitting the old app and an `xattr` command (0023, 0026). The
+owner asked for it to be automatic. The app stays ad-hoc signed and not
+notarized, so Gatekeeper still blocks a quarantined copy.
+
+**Decision.**
+- `scripts/install.sh`, run as
+  `curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash`
+  (`| bash -s -- <version>` for a given version). README, Install and the
+  release notes lead with it; the manual DMG and zip steps stay below.
+- It installs the zip, not the DMG: unpacking with `ditto` needs no mount,
+  no `hdiutil` and nothing to detach on failure.
+- The latest version comes from the GitHub API without a token
+  (`releases/latest`, `tag_name`). A 403 or 429 that says "rate limit" stops
+  with a message that names the limit and the version argument as the way
+  round it. The tag must be `v<major>.<minor>.<patch>`.
+- Fail closed: `set -euo pipefail`, everything in a `main` called on the last
+  line (a cut-off download runs nothing), no `|| true`. Downloads use `curl`
+  with https only (also after redirects), connect and total timeouts and 3
+  retries, into a `mktemp -d` folder removed by an EXIT trap. The `.sha256`
+  file must be one `<hash>  LiveCaptions-<version>.zip` line and
+  `shasum -a 256 -c` must pass, or nothing is installed.
+- The zip is unpacked into a staging folder inside /Applications (same
+  volume, so moves are renames) and must contain `LiveCaptions.app` with an
+  Info.plist and its executable. Only then is a running LiveCaptions asked to
+  quit (`osascript ... to quit`, waiting up to 20 s; still running means stop
+  with nothing changed). The old app is moved into the staging folder and the
+  new one into place; if that fails, the old one is moved back. The staging
+  folder, with the old app, is removed on exit.
+- It clears `com.apple.quarantine` only if set (curl does not set it), checks
+  it is gone, then opens the app.
+- Apple Silicon (`uname -m`, or `hw.optional.arm64` under Rosetta) and
+  macOS 26 or later are checked first. It never runs `sudo` and refuses to run
+  as root; an unwritable /Applications stops with a message that points to
+  the manual steps. No telemetry: the only network use is the API lookup and
+  the two downloads from GitHub.
+- It runs with macOS's `/bin/bash` 3.2: no bash 4 features, regexes in
+  variables.
+- Tests: shellcheck, and `scripts/install-selftest.sh`, which runs the real
+  script against a fake release served on 127.0.0.1. `LIVECAPTIONS_RELEASE_BASE`,
+  `LIVECAPTIONS_API_URL`, `LIVECAPTIONS_APPS_DIR` and
+  `LIVECAPTIONS_QUIT_TIMEOUT` point it there, and stub commands on `PATH`
+  stand in for `osascript`, `open` and `pgrep` (on Linux also `uname`,
+  `sw_vers`, `sysctl`, `ditto` and `xattr`). It covers the happy path,
+  replacing a running app with the script fed on stdin, checksum mismatch,
+  missing release and asset, a failed (HTTP 500) download, a zip without the
+  app, a bad checksum line, bad arguments, the rate limit, a bad tag, a
+  missing or read-only apps folder, an app that will not quit, wrong OS,
+  Intel, old macOS and a Rosetta shell. Each failure must leave the old app
+  in place and nothing behind. CI runs it on Linux and on macOS (with
+  `/bin/bash`, the real `ditto` and `xattr`, and a quarantine case). The
+  Release workflow also installs the zip it just built and attaches
+  `install.sh` to the Release.
+
+**Consequences.** `curl | bash` trusts GitHub and the main branch; the
+checksum guards against a broken or swapped download, not against a
+compromised repository. The `xattr` step disappears only when releases are
+signed with a Developer ID and notarized, which needs an Apple Developer
+account (an owner decision). Nothing changes in the app; the offline and
+dependency checks are unchanged.

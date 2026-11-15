@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Prints the GitHub Release notes for a version: its CHANGELOG.md section
-# (without the heading), then install steps and the checksums of the DMG and
-# the zip.
+# (without the heading), then install steps (the one-line installer,
+# scripts/install.sh, first; then the DMG and the zip by hand) and the
+# checksums of the DMG and the zip.
 #
 #   scripts/release-notes.sh <version> <zip.sha256> <dmg.sha256> [CHANGELOG.md]
 #
@@ -48,6 +49,20 @@ $section
 
 ## Install
 
+Paste this into Terminal (Apple Silicon, macOS 26 or later):
+
+\`\`\`sh
+curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash -s -- $version
+\`\`\`
+
+It downloads \`$zip\`, checks it against \`$zip.sha256\`, quits a
+running LiveCaptions, replaces /Applications/LiveCaptions.app (the old app
+stays if anything fails), clears the quarantine flag and opens the app. No
+sudo. Leave out \`-s -- $version\` to get the latest release. The same
+script is attached to this release as \`install.sh\`.
+
+### Manual install
+
 Download \`$dmg\` and \`$dmg.sha256\`, check the DMG and open it:
 
 \`\`\`sh
@@ -74,7 +89,9 @@ open /Applications/LiveCaptions.app
 \`\`\`
 
 The build is ad-hoc signed and not notarized, which is why the \`xattr\` step is
-needed. First-run permissions, the speech model download and how to report a
+needed (the installer does it for you). It goes away only once releases are
+signed with a Developer ID and notarized, which needs an Apple Developer
+account. First-run permissions, the speech model download and how to report a
 problem: [README, Install](https://github.com/zerone0x/mac-live-captions/blob/v$version/README.md#install).
 
 SHA-256 (\`$dmg\`): \`$dmg_sum\`

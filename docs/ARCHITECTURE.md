@@ -207,4 +207,9 @@ run `swift test --package-path Packages/Core`, and expect a failure.
   `LiveCaptions-<sha>` (the zipped app), `overlay-screenshots-<sha>` (the
   rendered PNGs) and `live-screenshots-<sha>`. `<sha>` is the PR head commit, or
   the pushed commit on `main`. The README ("Try a CI build") says how to
-  download them.
+  download them. The same workflow also runs `scripts/install-selftest.sh`
+  (the one-line installer, docs/DECISIONS.md 0027) on macOS, and a Linux job
+  runs shellcheck and the same self-test.
+- `scripts/install.sh` is the one-line installer users pipe into `bash`. It
+  is not part of the app; it downloads and verifies a release zip and swaps
+  `/Applications/LiveCaptions.app`.

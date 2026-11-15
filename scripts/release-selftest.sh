@@ -213,6 +213,11 @@ if out="$(notes 0.1.0 "$good_zip" "$good_dmg" "$work/CHANGELOG.md" 2>&1)"; then
   [[ "$out" == *"SHA-256 (\`$zip\`): \`$sum\`"* ]] || { echo "selftest: notes lack the zip checksum: $out" >&2; status=1; }
   [[ "$out" == *"SHA-256 (\`$dmg\`): \`$dsum\`"* ]] || { echo "selftest: notes lack the DMG checksum: $out" >&2; status=1; }
   [[ "$out" == *"open $dmg"* ]] || { echo "selftest: notes lack the DMG install step: $out" >&2; status=1; }
+  # The one-line installer comes first, pinned to this version.
+  oneliner="scripts/install.sh | bash -s -- 0.1.0"
+  [[ "$out" == *"$oneliner"* ]] || { echo "selftest: notes lack the one-line installer: $out" >&2; status=1; }
+  [[ "${out%%"$oneliner"*}" != *"open $dmg"* ]] \
+    || { echo "selftest: notes do not lead with the one-line installer: $out" >&2; status=1; }
   [[ "$out" != *"## [0.1.0]"* ]] || { echo "selftest: notes repeat the heading: $out" >&2; status=1; }
 fi
 expect_pass notes-last-section "Only section." notes 0.1.0 "$good_zip" "$good_dmg" "$work/last.md"

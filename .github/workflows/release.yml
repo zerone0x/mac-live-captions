@@ -2,7 +2,8 @@ name: Release
 
 # A tag v<major>.<minor>.<patch> on main builds, checks and publishes a GitHub
 # Release with a drag-to-Applications DMG and the zipped app, each with its
-# SHA-256 file (docs/DECISIONS.md 0023, 0026). workflow_dispatch, and PRs that
+# SHA-256 file, and the one-line installer install.sh (docs/DECISIONS.md
+# 0023, 0026, 0027). workflow_dispatch, and PRs that
 # change the release machinery, run the same build and packaging as a dry
 # run: they upload the files as a workflow artifact and never create a
 # Release.
@@ -14,6 +15,7 @@ on:
     paths:
       - .github/workflows/release.yml
       - scripts/release-*
+      - scripts/install*
       - CHANGELOG.md
       - project.yml
   workflow_dispatch:
@@ -115,6 +117,10 @@ jobs:
       - name: Self-test the app verifier
         run: scripts/verify-app-selftest.sh
 
+      - name: Self-test the one-line installer
+        timeout-minutes: 5
+        run: scripts/install-selftest.sh
+
       - name: Check caption path stays offline
         run: make check-offline
 
@@ -152,6 +158,18 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/release-dmg.sh "$VERSION" build/DerivedData/Build/Products/Release/LiveCaptions.app dist
+
+      # The one-line installer (docs/DECISIONS.md 0027) installs the zip just
+      # built, served from a local fake release, into a temporary folder with
+      # macOS's /bin/bash; then the app's signature and version are checked.
+      - name: Install the built zip with install.sh
+        timeout-minutes: 5
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          scripts/install-selftest.sh "$VERSION" dist
+          cp scripts/install.sh dist/install.sh
 
       # A picture of the window a user sees when opening the DMG, for review
       # only: not a check (the layout is checked above from the .DS_Store),
@@ -206,6 +224,7 @@ jobs:
             dist/LiveCaptions-${{ steps.version.outputs.version }}-mac-arm64.dmg.sha256
             dist/LiveCaptions-${{ steps.version.outputs.version }}.zip
             dist/LiveCaptions-${{ steps.version.outputs.version }}.zip.sha256
+            dist/install.sh
             dist/release-notes.md
           if-no-files-found: error
           retention-days: 14
@@ -235,11 +254,13 @@ jobs:
           set -euo pipefail
           zip="LiveCaptions-$VERSION.zip"
           dmg="LiveCaptions-$VERSION-mac-arm64.dmg"
-          for f in "$dmg" "$dmg.sha256" "$zip" "$zip.sha256" release-notes.md; do
+          for f in "$dmg" "$dmg.sha256" "$zip" "$zip.sha256" install.sh release-notes.md; do
             [[ -s "$f" ]] || { echo "error: missing or empty $f" >&2; exit 1; }
           done
           sha256sum -c "$dmg.sha256"
           sha256sum -c "$zip.sha256"
+          first_line="$(head -n 1 install.sh)"
+          [[ "$first_line" == '#!/bin/bash' ]] || { echo "error: install.sh is not the installer" >&2; exit 1; }
           # A UDIF disk image ends with a 512-byte trailer starting "koly".
           [[ "$(tail -c 512 "$dmg" | head -c 4)" == koly ]] || { echo "error: $dmg is not a UDIF disk image" >&2; exit 1; }
 
@@ -261,6 +282,7 @@ jobs:
             "LiveCaptions-$VERSION-mac-arm64.dmg" \
             "LiveCaptions-$VERSION-mac-arm64.dmg.sha256" \
             "LiveCaptions-$VERSION.zip" \
-            "LiveCaptions-$VERSION.zip.sha256"
+            "LiveCaptions-$VERSION.zip.sha256" \
+            install.sh
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets \
             --jq '.url, (.assets[] | "\(.name) \(.size)")'

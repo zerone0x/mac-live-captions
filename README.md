@@ -35,9 +35,30 @@ Requirements: Apple Silicon Mac, macOS 26 or later.
 
 ## Install
 
-Needs an Apple Silicon Mac with macOS 26 or later. There are two ways in: the
-DMG (drag to Applications, from v0.1.2 on) or the copy-paste zip install
-below. Both end with the same app and the same first run (steps 4 to 6).
+Needs an Apple Silicon Mac with macOS 26 or later. Paste this into Terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash
+```
+
+[`scripts/install.sh`](scripts/install.sh) checks the Mac, finds the latest
+release, downloads `LiveCaptions-<version>.zip` and its `.sha256` file into a
+temporary folder, refuses unless `shasum -a 256 -c` passes, quits a running
+LiveCaptions, replaces `/Applications/LiveCaptions.app` (the old app stays if
+anything fails), clears the quarantine flag and opens the app. It never uses
+sudo and sends nothing anywhere; it only downloads from GitHub. For a
+specific version, end the line with `| bash -s -- 0.1.2`. Run the same line
+again to update. Each release also has the script attached as `install.sh`.
+Then continue with the first run (step 5 below).
+
+The quarantine step is needed because the app is ad-hoc signed and not
+notarized. It goes away only when releases are signed with a Developer ID
+and notarized, which needs an Apple Developer account (an owner decision,
+docs/DECISIONS.md 0027).
+
+To do it by hand instead, there are two ways: the DMG (drag to Applications,
+from v0.1.2 on) or the copy-paste zip install below. Both end with the same
+app and the same first run (steps 4 to 6).
 
 **DMG.** From the
 [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest),
@@ -99,8 +120,9 @@ What these steps do:
    Then **Start Captions** (or ⌃⌥C from any app) and play something with
    English speech. The microphone permission is asked for only if you run
    **Debug: Audio Capture** with the microphone; captions never use it.
-6. Updating: quit LiveCaptions, replace the app in /Applications with the new
-   one and clear the quarantine flag again. Each release has a new ad-hoc
+6. Updating: run the one-line installer again, or quit LiveCaptions, replace
+   the app in /Applications with the new one and clear the quarantine flag
+   again. Each release has a new ad-hoc
    signature, so macOS may ask for the permissions again.
 
 To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`.
@@ -133,13 +155,15 @@ beyond what you describe; leave out anything private you saw in captions.
    equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
    verifies the Release app, zips it, builds the DMG
    (`scripts/release-dmg.sh`; it mounts the DMG read-only and re-verifies the
-   app inside), writes a `.sha256` file for each and creates the GitHub
-   Release with the changelog section as its notes.
+   app inside), writes a `.sha256` file for each, installs the zip with
+   `scripts/install.sh` into a temporary folder, and creates the GitHub
+   Release with the changelog section as its notes and `install.sh`
+   attached.
 
 Run it by hand (Actions → Release → Run workflow, or
 `gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
 packages, uploads the files as a workflow artifact and publishes nothing.
-Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023 and 0026.
+Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023, 0026 and 0027.
 
 ## Try a CI build
 
