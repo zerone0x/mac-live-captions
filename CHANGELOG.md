@@ -5,9 +5,16 @@ of its GitHub Release (`scripts/release-notes.sh`, `docs/DECISIONS.md` 0023).
 Versions follow [Semantic Versioning](https://semver.org); the version in
 `project.yml` (`MARKETING_VERSION`) must match the release tag.
 
-## Unreleased
+## [0.1.2]
+
+An app icon and a DMG to install from.
 
 ### Added
+
+- **An app icon** (#53): two caption lines (white finished text, a fading
+  grey tail) on a dark panel over a warm peach-to-coral gradient, shown in
+  the Dock, Finder and the welcome window. On macOS 26 large sizes appear
+  inside the system's frame for icons not made with Icon Composer (#56).
 
 - **A DMG to install from** (#55): each release also ships
   `LiveCaptions-<version>-mac-arm64.dmg` and its `.sha256` file. Opening it

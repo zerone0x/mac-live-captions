@@ -8,8 +8,8 @@ throw-away venv from scripts/release-dmg-requirements.txt). dmgbuild writes
 the Finder window settings straight into the image's .DS_Store, so no Finder,
 AppleScript or GUI session is involved (docs/DECISIONS.md 0026).
 
-The layout is electron-builder's default DMG: a 540 x 380 window with
-80-point icons, the app at (130, 220) and an Applications link at (410, 220),
+The layout follows electron-builder's default DMG, with the icons centred vertically: a 540 x 380 window with
+80-point icons, the app at (130, 175) and an Applications link at (410, 175),
 no background image, compressed UDZO. The volume icon is the app's own
 AppIcon.icns. `check` reads the .DS_Store of the
 mounted image back and fails unless it says exactly that.
@@ -24,7 +24,7 @@ WINDOW_ORIGIN = (400, 100)
 WINDOW_SIZE = (540, 380)
 ICON_SIZE = 80
 TEXT_SIZE = 12
-ICONS = {APP: (130, 220), LINK: (410, 220)}
+ICONS = {APP: (130, 175), LINK: (410, 175)}
 
 
 def fail(message):
