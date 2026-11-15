@@ -41,10 +41,14 @@ function run(argv) {
     const rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
       null, pixels, pixels, 8, 4, true, false, $.NSDeviceRGBColorSpace, 0, 0);
     rep.size = $.NSMakeSize(points, points);
-    $.NSGraphicsContext.saveGraphicsState;
-    $.NSGraphicsContext.currentContext = $.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep);
+    $.NSGraphicsContext.saveGraphicsState();
+    $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep));
     icon.drawInRectFromRectOperationFraction($.NSMakeRect(0, 0, points, points), $.NSZeroRect, $.NSCompositingOperationSourceOver, 1);
-    $.NSGraphicsContext.restoreGraphicsState;
+    $.NSGraphicsContext.currentContext.flushGraphics();
+    $.NSGraphicsContext.restoreGraphicsState();
+    // A drawing that silently did nothing leaves a transparent bitmap.
+    const centre = rep.colorAtXY(pixels / 2, pixels / 2);
+    if (centre.isNil() || centre.alphaComponent < 0.5) throw new Error('blank render at ' + points + ' pt');
     const png = rep.representationUsingTypeProperties($.NSBitmapImageFileTypePNG, $());
     const path = out + '/finder-' + points + '.png';
     if (!png.writeToFileAtomically(path, true)) throw new Error('cannot write ' + path);
