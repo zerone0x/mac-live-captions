@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Checks a built (Release) LiveCaptions.app: menu-bar only, usage strings
 # present, arm64 binary, valid (ad-hoc) signature with hardened runtime and
-# exactly the expected entitlements (no get-task-allow), stripped binary.
+# exactly the expected entitlements (no get-task-allow), stripped binary, and
+# the compiled app icon (docs/DECISIONS.md 0025).
 # Debug builds fail on purpose: they keep get-task-allow and debug symbols.
 # scripts/verify-app-selftest.sh checks that each rule actually fails.
 set -euo pipefail
@@ -23,6 +24,19 @@ for key in NSAudioCaptureUsageDescription NSMicrophoneUsageDescription NSSpeechR
   value="$(plutil -extract "$key" raw "$plist" 2>/dev/null || true)"
   [[ -n "$value" ]] || fail "missing usage string $key"
 done
+
+# App icon (docs/DECISIONS.md 0025): actool compiles the AppIcon set into
+# Assets.car and AppIcon.icns and names both in Info.plist. Without them
+# Finder, the Dock and System Settings show the blank placeholder icon.
+icon_name="$(plutil -extract CFBundleIconName raw "$plist" 2>/dev/null || true)"
+[[ "$icon_name" == "AppIcon" ]] || fail "CFBundleIconName is not AppIcon (got: '$icon_name')"
+icon_file="$(plutil -extract CFBundleIconFile raw "$plist" 2>/dev/null || true)"
+[[ "$icon_file" == "AppIcon" || "$icon_file" == "AppIcon.icns" ]] \
+  || fail "CFBundleIconFile is not AppIcon (got: '$icon_file')"
+icns="$app/Contents/Resources/AppIcon.icns"
+[[ -s "$icns" ]] || fail "missing app icon: $icns"
+[[ "$(head -c 4 "$icns")" == "icns" ]] || fail "AppIcon.icns is not an icns file"
+[[ -s "$app/Contents/Resources/Assets.car" ]] || fail "missing compiled asset catalog: Contents/Resources/Assets.car"
 
 archs="$(lipo -archs "$binary")"
 [[ "$archs" == "arm64" ]] || fail "expected arm64 only, got: $archs"
@@ -70,4 +84,4 @@ if [[ "$text" == *"/Users/runner/"* ]]; then
   fail "binary contains /Users/runner/ build paths"
 fi
 
-echo "verify-app: OK ($app, $archs, hardened runtime, no get-task-allow, stripped)"
+echo "verify-app: OK ($app, $archs, hardened runtime, no get-task-allow, stripped, app icon)"

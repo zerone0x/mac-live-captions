@@ -104,6 +104,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # The compiled icon, as macOS shows it for the built bundle
+      # (docs/DECISIONS.md 0025).
+      - name: Render the app icon from the built bundle
+        timeout-minutes: 2
+        run: make app-icon-preview
+
+      - name: Upload app icon pictures
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: app-icon-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/app-icon/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Render screenshots (overlay, menu, Settings, welcome)
         timeout-minutes: 3
         run: make screenshots
