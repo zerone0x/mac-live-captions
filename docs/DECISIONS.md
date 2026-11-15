@@ -781,8 +781,8 @@ needs Terminal or a manual move to Applications.
   run. create-dmg was not used because it lays the window out by scripting
   Finder, which is the fragile part on a headless runner.
 - The layout is electron-builder's default (`scripts/release-dmg-layout.py`):
-  540 x 380 window, 80-point icons, the app at (130, 220), an `Applications`
-  symlink to `/Applications` at (410, 220), no background image, the app's
+  540 x 380 window, 80-point icons, the app at (130, 175), an `Applications`
+  symlink to `/Applications` at (410, 175) (vertically centred in v0.1.2; electron-builder uses y 220, which looked bottom-heavy without a background image), no background image, the app's
   `AppIcon.icns` (0025) as the volume icon, volume name
   `LiveCaptions <version>`, compressed UDZO, HFS+.
 - The DMG is checked fail-closed before anything is uploaded: the UDIF

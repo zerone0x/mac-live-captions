@@ -4,7 +4,7 @@ Live English captions for any audio on your Mac, shown near the notch.
 Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
 are fast and nothing leaves your Mac.
 
-Status: v0.1.1 ([CHANGELOG.md](CHANGELOG.md); to install
+Status: v0.1.2 ([CHANGELOG.md](CHANGELOG.md); to install
 it, see [Install](#install)). The current scope, what the app does and what
 it does not do yet, is [docs/SCOPE.md](docs/SCOPE.md): English live captions
 of system audio, on device, no translation and no summaries.
@@ -61,7 +61,7 @@ with the [latest release](https://github.com/zerone0x/mac-live-captions/releases
 if it is newer):
 
 ```sh
-V=0.1.1
+V=0.1.2
 cd ~/Downloads
 curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip"
 curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip.sha256"
