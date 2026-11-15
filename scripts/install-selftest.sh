@@ -199,11 +199,12 @@ server.serve_forever()
 EOF
 python3 -I "$work/server.py" "$root" "$work/port" &
 server_pid=$!
-for _ in $(seq 1 100); do
+# Up to 60 s: python can be slow to start on a busy CI runner.
+for _ in $(seq 1 600); do
   [[ -s "$work/port" ]] && break
   sleep 0.1
 done
-[[ -s "$work/port" ]] || { echo "install-selftest: the test server did not start" >&2; exit 1; }
+[[ -s "$work/port" ]] || { echo "install-selftest: the test server did not start within 60 s" >&2; exit 1; }
 base="http://127.0.0.1:$(cat "$work/port")"
 
 # --- Cases ---------------------------------------------------------------------
