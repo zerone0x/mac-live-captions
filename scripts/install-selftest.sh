@@ -62,7 +62,7 @@ log="$work/calls.log"
 state="$work/state" # stub state: running, stubborn
 mkdir -p "$state"
 
-# pgrep -x LiveCaptions: running while $state/running exists.
+# pgrep -u <uid> -x LiveCaptions: running while $state/running exists.
 cat >"$stubs/pgrep" <<EOF
 #!/bin/sh
 echo "pgrep \$*" >>"$log"
@@ -285,6 +285,7 @@ not_called osascript happy-latest
 touch "$state/running"
 run replace-running-piped pass "Replaced $app" 9.9.1 PIPE=1 -- v9.9.1
 called "osascript -e tell application id \"dev.trine.LiveCaptions\" to quit" replace-running-piped
+called "pgrep -u $(id -u) -x LiveCaptions" replace-running-piped
 called "open $app" replace-running-piped
 [[ ! -e "$state/running" ]] || fail "replace-running-piped: the app was not quit"
 
@@ -306,6 +307,35 @@ touch "$state/running" "$state/stubborn"
 run app-will-not-quit fail "still running after 2s" 9.9.1 -- 9.9.2
 not_called open app-will-not-quit
 rm -f "$state/running" "$state/stubborn"
+
+# The caller's environment must not choose what cleanup deletes: with WORK,
+# STAGE and KEEP_STAGE exported at a sentinel folder, a failure before the
+# temporary folder exists (TMPDIR missing) and a failure after both folders
+# exist (checksum mismatch) leave the sentinel alone and remove only what
+# the script made.
+sentinel="$work/sentinel"
+mkdir -p "$sentinel" && echo keep >"$sentinel/file"
+run hostile-env-no-tmpdir fail "cannot create a temporary folder" 9.9.1 \
+  "WORK=$sentinel" "STAGE=$sentinel" "TMPDIR=$work/missing-tmp" -- 9.9.2
+[[ -f "$sentinel/file" ]] || fail "hostile-env-no-tmpdir: deleted the caller's \$STAGE/\$WORK folder"
+mkdir -p "$sentinel" && echo keep >"$sentinel/file"
+run hostile-env-checksum fail "checksum mismatch" 9.9.1 \
+  "WORK=$sentinel" "STAGE=$sentinel" -- 9.9.3
+[[ -f "$sentinel/file" ]] || fail "hostile-env-checksum: deleted the caller's \$STAGE/\$WORK folder"
+mkdir -p "$sentinel" && echo keep >"$sentinel/file"
+# An exported KEEP_STAGE must not leave the staging folder behind (run
+# checks that nothing is left in the apps folder).
+run hostile-env-keep-stage fail "checksum mismatch" 9.9.1 \
+  "WORK=$sentinel" "STAGE=$sentinel" "KEEP_STAGE=1" -- 9.9.3
+[[ -f "$sentinel/file" ]] || fail "hostile-env-keep-stage: deleted the caller's \$STAGE/\$WORK folder"
+
+# Plain http only for URLs that start with http://127.0.0.1, not for any
+# URL that merely contains it.
+port="${base##*:}"
+run http-not-loopback-download fail "download failed: http://localhost" 9.9.1 \
+  "LIVECAPTIONS_RELEASE_BASE=http://localhost:$port/?http://127.0.0.1/" -- 9.9.2
+run http-not-loopback-api fail "cannot reach http://localhost" 9.9.1 \
+  "LIVECAPTIONS_API_URL=http://localhost:$port/api/latest?http://127.0.0.1/"
 
 chmod a-w "$apps"
 run apps-dir-read-only fail "is not writable" 9.9.1 -- 9.9.2

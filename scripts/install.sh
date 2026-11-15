@@ -31,6 +31,14 @@
 
 set -euo pipefail
 
+# The folders cleanup removes. Unset first, so a value exported by the
+# caller (and its export flag) is gone; each is set only right after the
+# script made that folder.
+unset WORK STAGE KEEP_STAGE
+WORK=""
+STAGE=""
+KEEP_STAGE=""
+
 # Everything is inside main, called on the last line, so a download cut off
 # half-way through (curl ... | bash) runs nothing.
 main() {
@@ -50,13 +58,6 @@ main() {
   esac
   [[ $# -le 1 ]] || die "expected at most one argument (a version such as 0.1.2), got $#"
   [[ "$quit_timeout" =~ ^[0-9]+$ ]] || die "LIVECAPTIONS_QUIT_TIMEOUT must be a number of seconds"
-
-  # Only https downloads, also after redirects; the self-test serves a fake
-  # release over http on 127.0.0.1.
-  PROTO="=https"
-  case "$base $api_url" in
-    *http://127.0.0.1[:/]*) PROTO="=https,http" ;;
-  esac
 
   if [[ "$(id -u)" -eq 0 ]]; then
     die "do not run this with sudo or as root; run it as yourself"
@@ -88,9 +89,12 @@ main() {
   # Temporary folder for the downloads, and a staging folder next to the
   # target (same volume, so the final move is a rename). Both go on exit.
   trap cleanup EXIT
-  WORK="$(mktemp -d "${TMPDIR:-/tmp}/livecaptions-install.XXXXXX")" || die "cannot create a temporary folder"
-  STAGE="$(mktemp -d "$apps_dir/.$app_name-install.XXXXXX")" \
+  local made
+  made="$(mktemp -d "${TMPDIR:-/tmp}/livecaptions-install.XXXXXX")" || die "cannot create a temporary folder"
+  WORK="$made"
+  made="$(mktemp -d "$apps_dir/.$app_name-install.XXXXXX")" \
     || die "cannot create a staging folder in $apps_dir"
+  STAGE="$made"
 
   # Download and check.
   local zip="$app_name-$version.zip"
@@ -151,8 +155,8 @@ die() {
 }
 
 cleanup() {
-  if [[ -n "${WORK:-}" ]]; then rm -rf "$WORK"; fi
-  if [[ -n "${STAGE:-}" && -z "${KEEP_STAGE:-}" ]]; then rm -rf "$STAGE"; fi
+  if [[ -n "$WORK" ]]; then rm -rf "$WORK"; fi
+  if [[ -n "$STAGE" && -z "$KEEP_STAGE" ]]; then rm -rf "$STAGE"; fi
 }
 
 check_platform() {
@@ -176,8 +180,14 @@ check_platform() {
 # curl with time limits and retries. Prints nothing on success; fails with
 # the URL and the HTTP status otherwise.
 fetch() { # url, output file -> prints the HTTP status
+  # Only https, also after redirects. The self-test serves a fake release
+  # over plain http on 127.0.0.1: allowed only for a URL that starts there.
+  local proto="=https"
+  case "$1" in
+    http://127.0.0.1:* | http://127.0.0.1/*) proto="=https,http" ;;
+  esac
   curl --silent --show-error --location \
-    --proto "$PROTO" --proto-redir "$PROTO" \
+    --proto "$proto" --proto-redir "$proto" \
     --connect-timeout 15 --max-time 600 --max-filesize 500000000 \
     --retry 3 --retry-delay 2 \
     --output "$2" --write-out '%{http_code}' "$1" </dev/null
@@ -245,7 +255,8 @@ clear_quarantine() { # app path
 
 is_running() { # process name -> 0 running, 1 not
   local rc=0
-  pgrep -x "$1" >/dev/null || rc=$?
+  # Only this user's processes: another user's copy is not ours to quit.
+  pgrep -u "$(id -u)" -x "$1" >/dev/null || rc=$?
   case "$rc" in
     0) return 0 ;;
     1) return 1 ;;
