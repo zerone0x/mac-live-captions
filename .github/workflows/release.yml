@@ -1,10 +1,11 @@
 name: Release
 
 # A tag v<major>.<minor>.<patch> on main builds, checks and publishes a GitHub
-# Release with the zipped app and its SHA-256 file (docs/DECISIONS.md 0023).
-# workflow_dispatch, and PRs that change the release machinery, run the same
-# build and packaging as a dry run: they upload the files as a workflow
-# artifact and never create a Release.
+# Release with a drag-to-Applications DMG and the zipped app, each with its
+# SHA-256 file (docs/DECISIONS.md 0023, 0026). workflow_dispatch, and PRs that
+# change the release machinery, run the same build and packaging as a dry
+# run: they upload the files as a workflow artifact and never create a
+# Release.
 
 on:
   push:
@@ -12,7 +13,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/release.yml
-      - scripts/release-*.sh
+      - scripts/release-*
       - CHANGELOG.md
       - project.yml
   workflow_dispatch:
@@ -142,13 +143,54 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: scripts/release-package.sh "$VERSION" build/DerivedData/Build/Products/Release/LiveCaptions.app dist
 
+      # Builds LiveCaptions-<version>-mac-arm64.dmg with dmgbuild (pinned,
+      # hash-checked, CI-only), writes its .sha256 file, then mounts it
+      # read-only and checks the volume name, the Applications link, the
+      # Finder layout and the volume icon, and re-runs verify-app,
+      # check-linked-frameworks and the version check on the app inside.
+      - name: Build and check the DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release-dmg.sh "$VERSION" build/DerivedData/Build/Products/Release/LiveCaptions.app dist
+
+      # A picture of the window a user sees when opening the DMG, for review
+      # only: not a check (the layout is checked above from the .DS_Store),
+      # so it may fail without failing the release.
+      - name: Screenshot the DMG window (preview, not a check)
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          dmg="dist/LiveCaptions-$VERSION-mac-arm64.dmg"
+          mnt="/Volumes/LiveCaptions $VERSION"
+          mkdir -p build/dmg-preview
+          trap 'scripts/with-timeout.sh 60 hdiutil detach -force -quiet "$mnt" || true' EXIT
+          scripts/with-timeout.sh 120 hdiutil attach -readonly -noverify "$dmg" >/dev/null
+          open "$mnt"
+          sleep 5
+          screencapture -x build/dmg-preview/dmg-window.png
+          osascript -e "tell application \"Finder\" to close every window" || true
+
+      - name: Upload the DMG window screenshot
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v6
+        with:
+          name: dmg-preview-${{ steps.version.outputs.tag }}
+          path: build/dmg-preview/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Write release notes
         env:
           VERSION: ${{ steps.version.outputs.version }}
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          scripts/release-notes.sh "$VERSION" "dist/LiveCaptions-$VERSION.zip.sha256" >dist/release-notes.md
+          scripts/release-notes.sh "$VERSION" \
+            "dist/LiveCaptions-$VERSION.zip.sha256" \
+            "dist/LiveCaptions-$VERSION-mac-arm64.dmg.sha256" >dist/release-notes.md
           {
             echo "## Release notes for v$VERSION (event: $EVENT)"
             echo
@@ -160,6 +202,8 @@ jobs:
         with:
           name: release-${{ steps.version.outputs.tag }}
           path: |
+            dist/LiveCaptions-${{ steps.version.outputs.version }}-mac-arm64.dmg
+            dist/LiveCaptions-${{ steps.version.outputs.version }}-mac-arm64.dmg.sha256
             dist/LiveCaptions-${{ steps.version.outputs.version }}.zip
             dist/LiveCaptions-${{ steps.version.outputs.version }}.zip.sha256
             dist/release-notes.md
@@ -190,10 +234,14 @@ jobs:
         run: |
           set -euo pipefail
           zip="LiveCaptions-$VERSION.zip"
-          for f in "$zip" "$zip.sha256" release-notes.md; do
+          dmg="LiveCaptions-$VERSION-mac-arm64.dmg"
+          for f in "$dmg" "$dmg.sha256" "$zip" "$zip.sha256" release-notes.md; do
             [[ -s "$f" ]] || { echo "error: missing or empty $f" >&2; exit 1; }
           done
+          sha256sum -c "$dmg.sha256"
           sha256sum -c "$zip.sha256"
+          # A UDIF disk image ends with a 512-byte trailer starting "koly".
+          [[ "$(tail -c 512 "$dmg" | head -c 4)" == koly ]] || { echo "error: $dmg is not a UDIF disk image" >&2; exit 1; }
 
       # Fails if a Release for this tag already exists (no silent overwrite)
       # and, with --verify-tag, if the tag is not on GitHub.
@@ -210,6 +258,8 @@ jobs:
             --verify-tag \
             --title "LiveCaptions $VERSION" \
             --notes-file release-notes.md \
+            "LiveCaptions-$VERSION-mac-arm64.dmg" \
+            "LiveCaptions-$VERSION-mac-arm64.dmg.sha256" \
             "LiveCaptions-$VERSION.zip" \
             "LiveCaptions-$VERSION.zip.sha256"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,assets \
