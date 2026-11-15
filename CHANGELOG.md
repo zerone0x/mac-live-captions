@@ -5,6 +5,15 @@ of its GitHub Release (`scripts/release-notes.sh`, `docs/DECISIONS.md` 0023).
 Versions follow [Semantic Versioning](https://semver.org); the version in
 `project.yml` (`MARKETING_VERSION`) must match the release tag.
 
+## Unreleased
+
+### Added
+
+- **A DMG to install from** (#55): each release also ships
+  `LiveCaptions-<version>-mac-arm64.dmg` and its `.sha256` file. Opening it
+  shows LiveCaptions next to an Applications folder; drag it across, then
+  clear the quarantine flag as before (README, Install). The zip stays.
+
 ## [0.1.1]
 
 A fix for the first real-Mac report.

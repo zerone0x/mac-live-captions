@@ -757,3 +757,55 @@ catalog icon (for example a container around a non-Icon Composer icon) is
 visible in the CI `app-icon` artifact (`finder-*.png`) and on the owner's
 Mac. A follow-up can replace the catalog icon with an Icon Composer `.icon`
 (layers from the same SVGs) to get dark, clear and tinted variants.
+
+## 0026: Releases also ship a drag-to-Applications DMG
+
+2026-11-15 · #55
+
+**Context.** The owner installs his Electron apps from electron-builder's
+default DMG: a Finder window with the app and an Applications alias, named
+`<App>-mac-<arch>.dmg`. LiveCaptions releases only had a zip (0023), which
+needs Terminal or a manual move to Applications.
+
+**Decision.**
+- The Release workflow also builds `LiveCaptions-<version>-mac-arm64.dmg` and
+  its `.sha256` file from the app it already verified, and attaches both to
+  the GitHub Release next to the zip, which stays as it is. Dry runs upload
+  them in the same workflow artifact.
+- `scripts/release-dmg.sh` builds the image with
+  [dmgbuild](https://github.com/dmgbuild/dmgbuild) (MIT), installed for the
+  run into a throw-away venv from `scripts/release-dmg-requirements.txt`
+  (exact versions, `--require-hashes`, wheels only). dmgbuild writes the
+  Finder window settings straight into the image's `.DS_Store`, so the layout
+  needs no Finder, AppleScript or GUI session and comes out the same on every
+  run. create-dmg was not used because it lays the window out by scripting
+  Finder, which is the fragile part on a headless runner.
+- The layout is electron-builder's default (`scripts/release-dmg-layout.py`):
+  540 x 380 window, 80-point icons, the app at (130, 220), an `Applications`
+  symlink to `/Applications` at (410, 220), no background image, the app's
+  `AppIcon.icns` (0025) as the volume icon, volume name
+  `LiveCaptions <version>`, compressed UDZO, HFS+.
+- The DMG is checked fail-closed before anything is uploaded: the UDIF
+  trailer, `hdiutil verify`, format UDZO and the checksum file. Then it is
+  attached read-only with `-nobrowse` at a private mount point (every
+  `hdiutil` call under `scripts/with-timeout.sh`, always detached on exit),
+  and the script checks the volume name, that only `Applications` and
+  `LiveCaptions.app` are visible, the link target, the volume icon and the
+  `.DS_Store` layout. It runs `verify-app.sh`, `check-linked-frameworks.sh`
+  and the version check on the app inside, whose CDHash must equal the
+  verified app's. The publish job re-checks both checksums and the trailer.
+- `scripts/release-checksum.sh` checks a checksum file: one
+  `<hash>  <name>` line naming exactly the release file, and the file's hash
+  when the file is next to it. `scripts/release-notes.sh` uses it for both
+  files and lists both checksums and both install paths.
+  `scripts/release-selftest.sh` checks that wrong names (another version,
+  another arch, no arch, a path, the zip for the DMG) and a tampered file
+  fail.
+- The DMG is not signed or notarized, like the app (0004, 0023).
+
+**Consequences.** Opening the DMG still ends in Gatekeeper's block on the
+copied app, so the DMG path in README, Install keeps the
+`xattr -dr com.apple.quarantine` step. The release job needs PyPI for the
+dmgbuild install. That is a build-machine dependency only: nothing is added
+to the app, and the offline and dependency checks are unchanged. A custom
+background image (an arrow) can be added to the same layout later.
