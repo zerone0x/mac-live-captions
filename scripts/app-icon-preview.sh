@@ -40,12 +40,12 @@ function run(argv) {
     const pixels = points * 2;
     const rep = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
       null, pixels, pixels, 8, 4, true, false, $.NSDeviceRGBColorSpace, 0, 0);
-    rep.size = $.NSMakeSize(points, points);
-    $.NSGraphicsContext.saveGraphicsState();
+    rep.setSize($.NSMakeSize(points, points));
+    $.NSGraphicsContext.saveGraphicsState;  // JXA: zero-argument methods are called as properties
     $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(rep));
     icon.drawInRectFromRectOperationFraction($.NSMakeRect(0, 0, points, points), $.NSZeroRect, $.NSCompositingOperationSourceOver, 1);
-    $.NSGraphicsContext.currentContext.flushGraphics();
-    $.NSGraphicsContext.restoreGraphicsState();
+    $.NSGraphicsContext.currentContext.flushGraphics;
+    $.NSGraphicsContext.restoreGraphicsState;
     // A drawing that silently did nothing leaves a transparent bitmap.
     const centre = rep.colorAtXY(pixels / 2, pixels / 2);
     if (centre.isNil() || centre.alphaComponent < 0.5) throw new Error('blank render at ' + points + ' pt');
