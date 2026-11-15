@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pictures of the app icon as the built app ships it (docs/DECISIONS.md 0025),
 # for review in the CI artifact:
-#   iconset/           every size, extracted from Contents/Resources/AppIcon.icns
+#   AppIcon.iconset/   every size, extracted from Contents/Resources/AppIcon.icns
 #                      with iconutil (proves the compiled icns parses)
 #   finder-<N>.png     the icon macOS itself shows for the bundle
 #                      (NSWorkspace iconForFile, with the system's own icon
@@ -22,11 +22,11 @@ rm -rf "$out"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
 
-iconutil -c iconset -o "$out/iconset" "$icns" || fail "iconutil cannot read $icns"
-count="$(find "$out/iconset" -name '*.png' | wc -l | tr -d ' ')"
+iconutil -c iconset -o "$out/AppIcon.iconset" "$icns" || fail "iconutil cannot read $icns"
+count="$(find "$out/AppIcon.iconset" -name '*.png' | wc -l | tr -d ' ')"
 [[ "$count" -gt 0 ]] || fail "iconutil extracted no images from $icns"
 echo "app-icon-preview: $count images from AppIcon.icns:"
-ls -l "$out/iconset"
+ls -l "$out/AppIcon.iconset"
 
 # JavaScript for Automation: AppKit without a Swift build step.
 jxa="$(mktemp -d)/finder-icon.js"
