@@ -5,6 +5,19 @@ of its GitHub Release (`scripts/release-notes.sh`, `docs/DECISIONS.md` 0023).
 Versions follow [Semantic Versioning](https://semver.org); the version in
 `project.yml` (`MARKETING_VERSION`) must match the release tag.
 
+## [Unreleased]
+
+### Added
+
+- **A one-line installer** (#60):
+  `curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash`
+  downloads the latest release zip, checks its SHA-256, quits a running
+  LiveCaptions, replaces the app in /Applications (keeping the old one if
+  anything fails), clears the quarantine flag and opens it. No sudo. Add
+  `-s -- <version>` after `bash` for a given version. Releases attach the
+  script as `install.sh`; README, Install and the release notes lead with
+  it, and the manual DMG and zip steps stay.
+
 ## [0.1.2]
 
 An app icon and a DMG to install from.
