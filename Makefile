@@ -9,6 +9,7 @@ ZIP      := build/LiveCaptions.zip
 SHOTS    := build/screenshots
 REFS     := scripts/fixtures/screenshots
 LIVE     := build/live-screenshots
+ICON     := build/app-icon
 
 # Recipes run in bash: `build` needs `set -o pipefail` so that a failing
 # xcodebuild still fails when piped into xcbeautify. (macOS ships GNU Make
@@ -27,7 +28,7 @@ XCBEAUTIFY ?= $(if $(shell command -v xcbeautify 2>/dev/null),xcbeautify,cat)
 # scripts/fixtures are kept as they are on purpose.
 FORMAT_PATHS := App Packages scripts/compare-screenshots.swift scripts/screen-info.swift
 
-.PHONY: all generate test test-core test-audio test-speech build package verify screenshots compare-screenshots record-screenshots live-screenshots check-offline check-linked-frameworks format format-check open clean
+.PHONY: all generate test test-core test-audio test-speech build package verify screenshots compare-screenshots record-screenshots live-screenshots app-icon-preview check-offline check-linked-frameworks format format-check open clean
 
 all: check-offline test build
 
@@ -98,6 +99,11 @@ record-screenshots:
 live-screenshots:
 	rm -rf $(LIVE)
 	scripts/live-screenshots.sh $(APP) $(LIVE)
+
+## After `make build`: the app icon as the built bundle ships it (iconset
+## extracted from AppIcon.icns, and the icon macOS shows for the bundle).
+app-icon-preview:
+	scripts/app-icon-preview.sh $(APP) $(ICON)
 
 ## Fail if networking APIs or remote dependencies appear (docs/DECISIONS.md 0003, 0012).
 check-offline:

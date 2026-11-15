@@ -711,3 +711,49 @@ captions continue); the phrase that was being recognized when the analyzer
 failed can be lost. A repeating failure shows a clear error instead of
 looping. The restart path needs a real `SpeechAnalyzer` and is checked by the
 owner on a Mac, not on CI.
+
+## 0025: App icon: asset catalog PNGs rendered from committed SVGs
+
+2026-11-15 · #53
+
+**Context.** The app showed the blank placeholder icon in Finder, the Dock,
+System Settings (Screen Recording, Microphone) and the welcome window. The
+owner picked the design from a specimen page: the two caption lines of
+specimen B (a finished white line, then a line whose tail fades from final
+text to grey "volatile" text) on the warm peach-to-coral gradient of
+specimen E. White and grey lines straight on the light end of that gradient
+have too little contrast (white on `#ffb36b` is about 1.8:1), so the lines sit
+on E's dark rounded caption panel. Agents have no Mac and no Icon Composer.
+
+**Decision.**
+- `design/icon/generate-svgs.py` (standard library) writes the SVG sources in
+  `design/icon/`: `AppIcon.svg` (64 px and up), and pixel-snapped masters for
+  the small sizes, which Apple allows to differ per size: `AppIcon-32.svg`
+  (panel and 2 px lines on whole pixels of the 32 px grid) and
+  `AppIcon-16.svg` (1 px lines on whole pixel rows, the fading tail reduced
+  to one grey segment, since three segments merge at 16 px).
+- `scripts/render-app-icon.cjs` (Node, Playwright, Chromium; a developer tool,
+  not a CI step) renders each of the 10 macOS sizes (16, 32, 128, 256, 512 at
+  1x and 2x) at its final pixel size into
+  `App/Assets.xcassets/AppIcon.appiconset` and writes its `Contents.json`.
+  The PNGs are committed (about 190 KB), so CI only compiles them.
+- `project.yml` adds the catalog to the app target and sets
+  `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`; actool writes `Assets.car`,
+  `AppIcon.icns` and `CFBundleIconName`/`CFBundleIconFile`.
+  `scripts/verify-app.sh` fails without them (self-tested), and CI uploads
+  the compiled icon (`make app-icon-preview`: the iconset extracted from
+  `AppIcon.icns`, and the icon macOS draws for the built bundle).
+- The menu-bar item keeps its SF Symbol template image.
+- No dark or tinted app icon for now. Apple's "Configuring your app icon"
+  documents Any/Dark/Tinted image wells in the asset catalog for iOS and
+  iPadOS only; for macOS, appearance variants (dark, clear, tinted) come from
+  an Icon Composer `.icon` file. `AppIcon-dark.svg` and `AppIcon-tinted.svg`
+  are kept as reference artwork for that follow-up and are not compiled.
+
+**Consequences.** Changing the icon means editing the generator, running it
+and the render script, and committing the PNGs. macOS 26 draws the icon as
+supplied in every appearance; whether it applies its own treatment to a
+catalog icon (for example a container around a non-Icon Composer icon) is
+visible in the CI `app-icon` artifact (`finder-*.png`) and on the owner's
+Mac. A follow-up can replace the catalog icon with an Icon Composer `.icon`
+(layers from the same SVGs) to get dark, clear and tinted variants.

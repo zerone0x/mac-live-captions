@@ -55,15 +55,29 @@ entitlements() { # name, then key=bool pairs
   echo "$file"
 }
 
+# Icon resources for make_app: "good" (default), "no-icon-name",
+# "no-icns", "bad-icns" or "no-car". Real icns/car content is not needed:
+# verify-app.sh checks presence, the icns magic and the Info.plist keys.
+icon_case=good
+
 make_app() { # case name, binary, entitlements file, codesign options
   local app="$work/$1/LiveCaptions.app"
-  mkdir -p "$app/Contents/MacOS"
+  mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   cp "$2" "$app/Contents/MacOS/LiveCaptions"
-  cat >"$app/Contents/Info.plist" <<'EOF'
+  local icon_keys='<key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundleIconName</key><string>AppIcon</string>'
+  [[ "$icon_case" == no-icon-name ]] && icon_keys='<key>CFBundleIconFile</key><string>AppIcon</string>'
+  if [[ "$icon_case" == bad-icns ]]; then
+    printf 'PNG not an icns' >"$app/Contents/Resources/AppIcon.icns"
+  elif [[ "$icon_case" != no-icns ]]; then
+    printf 'icns\000\000\000\010' >"$app/Contents/Resources/AppIcon.icns"
+  fi
+  [[ "$icon_case" == no-car ]] || printf 'BOMStore' >"$app/Contents/Resources/Assets.car"
+  cat >"$app/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	$icon_keys
 	<key>CFBundleExecutable</key><string>LiveCaptions</string>
 	<key>CFBundleIdentifier</key><string>dev.trine.LiveCaptions</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
@@ -122,6 +136,20 @@ expect_fail unstripped-large "$(make_app unstripped-big "$work/bin-unstripped-bi
   "not stripped"
 expect_fail runner-path "$(make_app runner-path "$work/bin-runner-path" "$good_ent" '--options runtime')" \
   "contains /Users/runner/ build paths"
+
+icon_case=no-icon-name
+expect_fail no-icon-name "$(make_app no-icon-name "$work/bin-stripped" "$good_ent" '--options runtime')" \
+  "CFBundleIconName is not AppIcon"
+icon_case=no-icns
+expect_fail no-icns "$(make_app no-icns "$work/bin-stripped" "$good_ent" '--options runtime')" \
+  "missing app icon"
+icon_case=bad-icns
+expect_fail bad-icns "$(make_app bad-icns "$work/bin-stripped" "$good_ent" '--options runtime')" \
+  "not an icns file"
+icon_case=no-car
+expect_fail no-asset-catalog "$(make_app no-car "$work/bin-stripped" "$good_ent" '--options runtime')" \
+  "missing compiled asset catalog"
+icon_case=good
 
 [[ $status -eq 0 ]] && echo "verify-app selftest: OK"
 exit $status

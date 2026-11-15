@@ -53,6 +53,9 @@ targets:
     platform: macOS
     sources:
       - path: App/Sources
+      # App icon (docs/DECISIONS.md 0025). The menu-bar item keeps its SF
+      # Symbol template image; this catalog only holds AppIcon.
+      - path: App/Assets.xcassets
     dependencies:
       - package: Core
         product: LiveCaptionsCore
@@ -68,4 +71,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_ENTITLEMENTS: App/LiveCaptions.entitlements
         ENABLE_APP_SANDBOX: NO
+        # actool compiles AppIcon into Assets.car and AppIcon.icns and adds
+        # CFBundleIconName/CFBundleIconFile to the built Info.plist.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme: {}
