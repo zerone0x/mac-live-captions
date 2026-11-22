@@ -1,83 +1,79 @@
-# LiveCaptions
+<h1 align="center">
+  <img src="App/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" width="64" alt=""><br>
+  LiveCaptions
+</h1>
 
-Live English captions for any audio on your Mac, shown near the notch.
-Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
-are fast and nothing leaves your Mac.
+<h2 align="center">Live English captions for anything your Mac plays.</h2>
 
-Status: v0.1.3 ([CHANGELOG.md](CHANGELOG.md); to install
-it, see [Install](#install)). The current scope, what the app does and what
-it does not do yet, is [docs/SCOPE.md](docs/SCOPE.md): English live captions
-of system audio, on device, no translation and no summaries.
+<p align="center">
+  Follow calls, videos, and podcasts with captions at the notch.
+  Speech recognition runs on your Mac, and audio and transcripts stay in memory.
+</p>
 
-Start Captions in the menu bar (or ⌃⌥C
-from any app) captions the audio your Mac plays, at the notch. The menu says
-what is really happening: checking or downloading the speech model, waiting
-for permission, listening, no audio playing, or the error.
+<p align="center">
+  <strong><a href="https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg">Download DMG</a></strong>
+  · <a href="#install">Install guide</a>
+  · <a href="CHANGELOG.md">Changelog</a>
+  <br>
+  <sub>Apple Silicon · macOS 26 or later · English (US)</sub>
+</p>
 
-What it needs:
+<p align="center">
+  <img src="scripts/fixtures/screenshots/overlay-notch-4-two-line-final.png" width="760" alt="LiveCaptions showing two lines of English captions in a black overlay at the MacBook notch">
+</p>
 
-- The **Screen & System Audio Recording** permission. After granting it,
-  relaunch LiveCaptions (the menu and the welcome window have a button).
-- Apple's **English speech model**. macOS downloads it once from Apple when
-  you click "Download English Speech Model". That download is the only time
-  LiveCaptions uses the network.
+## Features
 
-Nothing is saved: no audio, no transcripts. Only the settings (text size,
-position, hide from screen sharing) are stored as preferences. The
-microphone is not captioned yet; it is only in **Debug: Audio Capture**.
+- **Caption system audio.** Follow English speech from meeting apps, browser tabs, and media players.
+- **Keep captions in view.** The overlay sits at the notch, appears below the menu bar on displays without a notch, or moves to the bottom of the screen. It lets clicks pass through and offers four text sizes. Settings can also hide the overlay from screen sharing where supported.
+- **Start from any app.** Press **⌃⌥C** (Control–Option–C) or use the menu bar. The menu shows whether LiveCaptions is listening, waiting for audio, or needs setup.
+- **Keep speech on your Mac.** Apple’s SpeechAnalyzer processes audio locally. LiveCaptions saves only preferences. The one-time English speech model download comes from Apple.
 
-Requirements: Apple Silicon Mac, macOS 26 or later.
-
-- Current product scope (source of truth): [docs/SCOPE.md](docs/SCOPE.md)
-- Original long-term vision, background only (Chinese): [PRD.md](PRD.md)
-- Architecture and module boundaries: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Decisions log: [docs/DECISIONS.md](docs/DECISIONS.md)
+LiveCaptions captions English system audio. Microphone captions, translation, and transcript export are outside the [current scope](docs/SCOPE.md).
 
 ## Install
 
-**[Download LiveCaptions v0.1.3 (.dmg)](https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg)** for Apple Silicon Macs running macOS 26 or later.
+Requires an **Apple Silicon Mac with macOS 26 or later**.
 
-1. Open the DMG and drag **LiveCaptions** to **Applications**. Quit an older
-   copy before replacing it.
-2. Eject the DMG and open LiveCaptions from Applications. Starting with
-   v0.1.3, the app and DMG are Developer ID signed and notarized by Apple.
-3. Look for the captions icon in the menu bar and follow the first-run steps
-   below.
+### DMG
+
+1. Download the [LiveCaptions v0.1.3 DMG](https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg).
+2. Open the DMG and drag **LiveCaptions** to **Applications**. Quit any
+   running copy before replacing it.
+3. Eject the DMG, then open LiveCaptions from Applications. Starting with
+   v0.1.3, both the app and DMG are Developer ID signed and notarized by Apple.
 
 The [release page](https://github.com/zerone0x/mac-live-captions/releases/tag/v0.1.3)
-also has the ZIP and SHA-256 files. To check the DMG, put it and its
-`.sha256` file in the same folder and run
-`shasum -a 256 -c LiveCaptions-0.1.3-mac-arm64.dmg.sha256`.
+also has the ZIP and SHA-256 files. To verify a download, keep it beside
+its `.sha256` file and run `shasum -a 256 -c` with the checksum filename.
+If you use the ZIP, unzip it and move `LiveCaptions.app` to Applications.
 
-### Install or update from Terminal
+### Terminal
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash
 ```
 
 The [installer](scripts/install.sh) downloads the latest release ZIP,
-checks its SHA-256, quits LiveCaptions if it is running, and replaces the
-app in Applications. An existing copy is restored if replacement fails.
-To pin a release, replace `| bash` with `| bash -s -- 0.1.3`.
+verifies its SHA-256 checksum, installs LiveCaptions in `/Applications`,
+and opens the app. It runs without `sudo`. Run the same command to update,
+or use `bash -s -- 0.1.3` in place of `bash` to select a version.
 
-### First run
+macOS may request permissions again when you upgrade from an older ad-hoc
+signed build. To uninstall, quit LiveCaptions and delete
+`/Applications/LiveCaptions.app`. To remove its preferences as well, run
+`defaults delete dev.trine.LiveCaptions`.
 
-Open **Welcome and Setup…** from the menu bar icon.
+## First run
 
-1. Click **Download English Speech Model**. macOS downloads it once from
-   Apple.
-2. Click **Ask for Permission**, allow LiveCaptions in System Settings →
-   Privacy & Security → Screen & System Audio Recording, then click
-   **Relaunch**. macOS may ask again when you switch from an older ad-hoc
-   signed build.
-3. Click **Start Captions**, or press ⌃⌥C, and play something with English
-   speech.
+1. Open **Welcome and Setup…** from the LiveCaptions icon in the menu bar.
+2. Click **Download English Speech Model** and wait for macOS to finish downloading it.
+3. Click **Ask for Permission**, allow LiveCaptions in **System Settings → Privacy & Security → Screen & System Audio Recording**, then click **Relaunch**.
+4. Play something with English speech. Choose **Start Captions** in the menu bar or press **⌃⌥C**.
 
-To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`.
-The settings are in `defaults read dev.trine.LiveCaptions` (`defaults delete
-dev.trine.LiveCaptions` removes them).
+To preview the overlay without playing audio, choose **Debug: Demo Captions** from the menu.
 
-### Report a problem
+## Report a problem
 
 [Open an issue](https://github.com/zerone0x/mac-live-captions/issues/new) with:
 
@@ -91,36 +87,6 @@ Known limitations are in [CHANGELOG.md](CHANGELOG.md); hardware checks still
 open are on [#29](https://github.com/zerone0x/mac-live-captions/issues/29).
 LiveCaptions saves no transcripts or audio, so there is nothing to attach
 beyond what you describe; leave out anything private you saw in captions.
-
-### Releasing (maintainers)
-
-1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`
-   and add a `## [<version>]` section to `CHANGELOG.md` in a PR. CI fails if
-   the version has no changelog section (`scripts/release-selftest.sh`).
-2. After it merges, tag the merge commit on `main` and push the tag:
-   `git tag v0.1.0 && git push origin v0.1.0`.
-3. The [Release workflow](.github/workflows/release.yml) checks that the tag
-   equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
-   verifies the Release app. The signing job uses a temporary keychain to sign
-   the app and DMG with Developer ID, notarizes both with Apple, and staples
-   both tickets before computing the final checksums. The GitHub Release is
-   created only after signed packaging and installer checks pass.
-
-Run it by hand (Actions → Release → Run workflow, or
-`gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
-packages, uploads the files as a workflow artifact and publishes nothing. To
-exercise signing and notarization without publishing, use
-`gh workflow run release.yml --ref main -f signed=true`.
-
-The `macos-release` GitHub Actions environment allows the `main` branch and
-`v*` tags. Configure these environment secrets for the Apple team used in the
-workflow:
-
-- `APPLE_SIGNING_P12_BASE64` and `APPLE_SIGNING_P12_PASSWORD`: the Developer ID
-  Application identity exported as a password-protected PKCS#12 file, encoded
-  in Base64, and its import password.
-- `APPLE_NOTARY_APPLE_ID` and `APPLE_NOTARY_PASSWORD`: the Apple Account on that
-  team and its [app-specific password](https://support.apple.com/102654).
 
 ## Try a CI build
 
@@ -225,3 +191,38 @@ scripts/          offline, dependency, linked-framework and bundle checks (CI)
 docs/             scope, architecture, decisions, manual testing, research
 PRD.md            original long-term vision (Chinese), background only
 ```
+
+## Project docs
+
+- [Current scope](docs/SCOPE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Decisions](docs/DECISIONS.md)
+- [Testing](docs/TESTING.md)
+- [Original product brief (Chinese)](PRD.md)
+
+## Releasing (maintainers)
+
+1. Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`.
+   Add a `## [<version>]` section to `CHANGELOG.md` and update the README
+   download link in the same PR.
+2. After it merges, tag the merge commit on `main` and push the release tag.
+3. The [Release workflow](.github/workflows/release.yml) checks that the tag
+   equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
+   verifies the Release app. The signing job uses a temporary keychain to
+   sign the app and DMG with Developer ID, notarizes both with Apple, and
+   staples the tickets before computing the final checksums. The GitHub
+   Release is created after signed packaging and installer checks pass.
+
+Run it by hand (Actions → Release → Run workflow, or
+`gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
+packages, uploads the files as a workflow artifact and publishes nothing.
+To test signing and notarization without publishing, run
+`gh workflow run release.yml --ref main -f signed=true`.
+
+The `macos-release` GitHub Actions environment allows `main` and `v*` tags.
+It needs these environment secrets for the Apple team used by the workflow.
+
+- `APPLE_SIGNING_P12_BASE64` and `APPLE_SIGNING_P12_PASSWORD` contain the
+  Base64-encoded Developer ID Application PKCS#12 file and its import password.
+- `APPLE_NOTARY_APPLE_ID` and `APPLE_NOTARY_PASSWORD` contain the Apple Account
+  on that team and its [app-specific password](https://support.apple.com/102654).
