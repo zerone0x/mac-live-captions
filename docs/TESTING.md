@@ -6,9 +6,20 @@ and no on-device speech model. These checks need a real Apple Silicon Mac
 with macOS 26. Run them for every PR that touches capture, speech, the
 overlay or the menu, and note the result in the PR.
 
-To see the UI without a Mac, use the CI screenshots (next section).
-Get a build as described in the README ("Try a CI build"). Each CI build has a
-new ad-hoc signature, so macOS may ask for the permission again.
+Use the [notarized release DMG](../README.md#install) to test a published version.
+To review the UI without a Mac, use the [CI screenshots](#screenshots-from-ci).
+
+## Test a specific commit
+
+Check out the commit and [build locally](CONTRIBUTING.md#build-locally) to run it
+on your Mac. To inspect the bundle built by CI, open a successful run in the
+[CI workflow](https://github.com/zerone0x/mac-live-captions/actions/workflows/ci.yml)
+and download `LiveCaptions-<sha>`. Extract the artifact and then the enclosed
+`LiveCaptions.zip` to get `LiveCaptions.app`. CI builds are ad-hoc signed, so
+macOS may block them on download or ask for audio permissions again between builds.
+
+To start the repeating demo on launch in a local build, run the executable
+inside the app bundle with `--demo-captions`.
 
 ## Screenshots from CI
 
