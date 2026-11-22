@@ -44,6 +44,16 @@ dmg="LiveCaptions-$version-mac-arm64.dmg"
 zip_sum="$("$checksum_sh" "$zip_checksum" "$zip")" || fail "bad zip checksum file $zip_checksum"
 dmg_sum="$("$checksum_sh" "$dmg_checksum" "$dmg")" || fail "bad DMG checksum file $dmg_checksum"
 
+open_app='open /Applications/LiveCaptions.app'
+installer_finish='clears the quarantine flag and opens the app'
+signature_note='The build is ad-hoc signed and not notarized, which is why the quarantine step is needed (the installer does it for you).'
+if [[ "${RELEASE_SIGNED:-0}" == 1 ]]; then
+  installer_finish='opens the app'
+  signature_note='The app and DMG are Developer ID signed and notarized by Apple.'
+else
+  open_app=$'xattr -dr com.apple.quarantine /Applications/LiveCaptions.app\n'"$open_app"
+fi
+
 cat <<EOF
 $section
 
@@ -57,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scr
 
 It downloads \`$zip\`, checks it against \`$zip.sha256\`, quits a
 running LiveCaptions, replaces /Applications/LiveCaptions.app (the old app
-stays if anything fails), clears the quarantine flag and opens the app. No
+stays if anything fails), $installer_finish. No
 sudo. Leave out \`-s -- $version\` to get the latest release. The same
 script is attached to this release as \`install.sh\`.
 
@@ -70,12 +80,10 @@ shasum -a 256 -c $dmg.sha256
 open $dmg
 \`\`\`
 
-Drag LiveCaptions to Applications in the window that opens, then clear the
-quarantine flag and open the app:
+Drag LiveCaptions to Applications in the window that opens, then run:
 
 \`\`\`sh
-xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
-open /Applications/LiveCaptions.app
+$open_app
 \`\`\`
 
 Or use the zip (\`$zip\` and \`$zip.sha256\`) instead of the DMG:
@@ -84,14 +92,11 @@ Or use the zip (\`$zip\` and \`$zip.sha256\`) instead of the DMG:
 shasum -a 256 -c $zip.sha256
 ditto -x -k $zip .
 mv LiveCaptions.app /Applications/
-xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
-open /Applications/LiveCaptions.app
+$open_app
 \`\`\`
 
-The build is ad-hoc signed and not notarized, which is why the \`xattr\` step is
-needed (the installer does it for you). It goes away only once releases are
-signed with a Developer ID and notarized, which needs an Apple Developer
-account. First-run permissions, the speech model download and how to report a
+$signature_note
+First-run permissions, the speech model download and how to report a
 problem: [README, Install](https://github.com/zerone0x/mac-live-captions/blob/v$version/README.md#install).
 
 SHA-256 (\`$dmg\`): \`$dmg_sum\`

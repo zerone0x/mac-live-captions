@@ -51,10 +51,9 @@ specific version, end the line with `| bash -s -- 0.1.2`. Run the same line
 again to update. Each release also has the script attached as `install.sh`.
 Then continue with the first run (step 5 below).
 
-The quarantine step is needed because the app is ad-hoc signed and not
-notarized. It goes away only when releases are signed with a Developer ID
-and notarized, which needs an Apple Developer account (an owner decision,
-docs/DECISIONS.md 0027).
+If your release notes say the app has been notarized, you can open it directly
+after installing it by hand. For older ad-hoc signed releases such as v0.1.2,
+see the quarantine step below.
 
 To do it by hand instead, there are two ways: the DMG (drag to Applications,
 from v0.1.2 on) or the copy-paste zip install below. Both end with the same
@@ -69,11 +68,9 @@ download `LiveCaptions-<version>-mac-arm64.dmg` and its `.sha256` file, then:
 2. Open the DMG. Finder shows LiveCaptions and an Applications folder; drag
    LiveCaptions onto Applications (replace an older copy; quit it first),
    then eject the "LiveCaptions <version>" disk.
-3. Clear the quarantine flag (the app is not notarized, see step 4 below) and
-   open it:
+3. Open it (see step 4 for older ad-hoc signed releases):
 
    ```sh
-   xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
    open /Applications/LiveCaptions.app
    ```
 
@@ -90,7 +87,6 @@ shasum -a 256 -c "LiveCaptions-$V.zip.sha256"   # must print "LiveCaptions-$V.zi
 ditto -x -k "LiveCaptions-$V.zip" .
 osascript -e 'quit app "LiveCaptions"' 2>/dev/null
 rm -rf /Applications/LiveCaptions.app && mv LiveCaptions.app /Applications/
-xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
 open /Applications/LiveCaptions.app
 ```
 
@@ -103,9 +99,9 @@ What these steps do:
    does not, delete the zip and do not open it.
 3. Unzip it and move the app to Applications, replacing an older copy (quit
    the running app first).
-4. The app is ad-hoc signed and not notarized (there is no Apple Developer ID
-   yet), so Gatekeeper blocks it as downloaded ("cannot be opened" or "is
-   damaged"). `xattr` clears the quarantine flag; then open it.
+4. If you installed an older ad-hoc signed release such as v0.1.2, run
+   `xattr -dr com.apple.quarantine /Applications/LiveCaptions.app` before opening
+   it. Notarized releases open with Gatekeeper's normal checks.
 5. First run. The app has no Dock icon: look for the captions icon in the menu
    bar. The welcome window (also in the menu as **Welcome and Setup…**) walks
    through two things:
@@ -120,10 +116,9 @@ What these steps do:
    Then **Start Captions** (or ⌃⌥C from any app) and play something with
    English speech. The microphone permission is asked for only if you run
    **Debug: Audio Capture** with the microphone; captions never use it.
-6. Updating: run the one-line installer again, or quit LiveCaptions, replace
-   the app in /Applications with the new one and clear the quarantine flag
-   again. Each release has a new ad-hoc
-   signature, so macOS may ask for the permissions again.
+6. Updating: run the one-line installer again, or quit LiveCaptions and
+   replace the app in /Applications with the new version. When switching
+   from an ad-hoc signed build, macOS may ask for permissions again.
 
 To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`.
 The settings are in `defaults read dev.trine.LiveCaptions` (`defaults delete
@@ -153,17 +148,26 @@ beyond what you describe; leave out anything private you saw in captions.
    `git tag v0.1.0 && git push origin v0.1.0`.
 3. The [Release workflow](.github/workflows/release.yml) checks that the tag
    equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
-   verifies the Release app, zips it, builds the DMG
-   (`scripts/release-dmg.sh`; it mounts the DMG read-only and re-verifies the
-   app inside), writes a `.sha256` file for each, installs the zip with
-   `scripts/install.sh` into a temporary folder, and creates the GitHub
-   Release with the changelog section as its notes and `install.sh`
-   attached.
+   verifies the Release app. The signing job uses a temporary keychain to sign
+   the app and DMG with Developer ID, notarizes both with Apple, and staples
+   both tickets before computing the final checksums. The GitHub Release is
+   created only after signed packaging and installer checks pass.
 
 Run it by hand (Actions → Release → Run workflow, or
 `gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
-packages, uploads the files as a workflow artifact and publishes nothing.
-Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023, 0026 and 0027.
+packages, uploads the files as a workflow artifact and publishes nothing. To
+exercise signing and notarization without publishing, use
+`gh workflow run release.yml --ref main -f signed=true`.
+
+The `macos-release` GitHub Actions environment allows the `main` branch and
+`v*` tags. Configure these environment secrets for the Apple team used in the
+workflow:
+
+- `APPLE_SIGNING_P12_BASE64` and `APPLE_SIGNING_P12_PASSWORD`: the Developer ID
+  Application identity exported as a password-protected PKCS#12 file, encoded
+  in Base64, and its import password.
+- `APPLE_NOTARY_APPLE_ID` and `APPLE_NOTARY_PASSWORD`: the Apple Account on that
+  team and its [app-specific password](https://support.apple.com/102654).
 
 ## Try a CI build
 
