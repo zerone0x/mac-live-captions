@@ -56,7 +56,8 @@ while IFS= read -r entry; do
 done <<<"$keychains"
 security create-keychain -p "$keychain_password" "$keychain"
 keychain_created=true
-security set-keychain-settings -lut 3600 "$keychain"
+# Keep the keychain unlocked through the app's notarization and DMG signing.
+security set-keychain-settings -lut 7200 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
 security import "$work/identity.p12" -k "$keychain" -f pkcs12 \
   -P "$APPLE_SIGNING_P12_PASSWORD" -T /usr/bin/codesign
@@ -80,8 +81,8 @@ notarize() {
   xcrun notarytool submit "$1" "${notary[@]}" --output-format json >"$response"
   submission="$(plutil -extract id raw "$response")"
   echo "release-sign: awaiting notarization of $(basename "$1") ($submission)"
-  if ! xcrun notarytool wait "$submission" "${notary[@]}" --timeout 15m --output-format json >"$response"; then
-    xcrun notarytool log "$submission" "${notary[@]}" >&2 || true
+  if ! xcrun notarytool wait "$submission" "${notary[@]}" --timeout 90m --output-format json >"$response"; then
+    xcrun notarytool info "$submission" "${notary[@]}" --output-format json >&2 || true
     fail "notarytool wait failed for $submission"
   fi
   status="$(plutil -extract status raw "$response")"
@@ -89,6 +90,7 @@ notarize() {
     xcrun notarytool log "$submission" "${notary[@]}" >&2 || true
     fail "notarization of $(basename "$1") returned $status"
   fi
+  echo "release-sign: Accepted $(basename "$1") ($submission)"
 }
 
 app="$work/app/LiveCaptions.app"
