@@ -1,135 +1,72 @@
-# LiveCaptions
+<h1 align="center">
+  <img src="App/Assets.xcassets/AppIcon.appiconset/icon_128x128.png" width="64" alt=""><br>
+  LiveCaptions
+</h1>
 
-Live English captions for any audio on your Mac, shown near the notch.
-Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
-are fast and nothing leaves your Mac.
+<h2 align="center">Live English captions for anything your Mac plays.</h2>
 
-Status: v0.1.2 ([CHANGELOG.md](CHANGELOG.md); to install
-it, see [Install](#install)). The current scope, what the app does and what
-it does not do yet, is [docs/SCOPE.md](docs/SCOPE.md): English live captions
-of system audio, on device, no translation and no summaries.
+<p align="center">
+  Follow calls, videos, and podcasts with captions at the notch.
+  Speech recognition runs on your Mac, and audio and transcripts stay in memory.
+</p>
 
-Start Captions in the menu bar (or ⌃⌥C
-from any app) captions the audio your Mac plays, at the notch. The menu says
-what is really happening: checking or downloading the speech model, waiting
-for permission, listening, no audio playing, or the error.
+<p align="center">
+  <strong><a href="https://github.com/zerone0x/mac-live-captions/releases/latest">Download for Mac</a></strong>
+  · <a href="#install">Install guide</a>
+  · <a href="CHANGELOG.md">Changelog</a>
+  <br>
+  <sub>Apple Silicon · macOS 26 or later · English (US)</sub>
+</p>
 
-What it needs:
+<p align="center">
+  <img src="scripts/fixtures/screenshots/overlay-notch-4-two-line-final.png" width="760" alt="LiveCaptions showing two lines of English captions in a black overlay at the MacBook notch">
+</p>
 
-- The **Screen & System Audio Recording** permission. After granting it,
-  relaunch LiveCaptions (the menu and the welcome window have a button).
-- Apple's **English speech model**. macOS downloads it once from Apple when
-  you click "Download English Speech Model". That download is the only time
-  LiveCaptions uses the network.
+## Features
 
-Nothing is saved: no audio, no transcripts. Only the settings (text size,
-position, hide from screen sharing) are stored as preferences. The
-microphone is not captioned yet; it is only in **Debug: Audio Capture**.
+- **Caption system audio.** Follow English speech from meeting apps, browser tabs, and media players.
+- **Keep captions in view.** The overlay sits at the notch, appears below the menu bar on displays without a notch, or moves to the bottom of the screen. It lets clicks pass through and offers four text sizes. Settings can also hide the overlay from screen sharing where supported.
+- **Start from any app.** Press **⌃⌥C** (Control–Option–C) or use the menu bar. The menu shows whether LiveCaptions is listening, waiting for audio, or needs setup.
+- **Keep speech on your Mac.** Apple’s SpeechAnalyzer processes audio locally. LiveCaptions saves only preferences. The one-time English speech model download comes from Apple.
 
-Requirements: Apple Silicon Mac, macOS 26 or later.
-
-- Current product scope (source of truth): [docs/SCOPE.md](docs/SCOPE.md)
-- Original long-term vision, background only (Chinese): [PRD.md](PRD.md)
-- Architecture and module boundaries: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Decisions log: [docs/DECISIONS.md](docs/DECISIONS.md)
+LiveCaptions captions English system audio. Microphone captions, translation, and transcript export are outside the [current scope](docs/SCOPE.md).
 
 ## Install
 
-Needs an Apple Silicon Mac with macOS 26 or later. Paste this into Terminal:
+Requires an **Apple Silicon Mac with macOS 26 or later**.
+
+### Terminal
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash
 ```
 
-[`scripts/install.sh`](scripts/install.sh) checks the Mac, finds the latest
-release, downloads `LiveCaptions-<version>.zip` and its `.sha256` file into a
-temporary folder, refuses unless `shasum -a 256 -c` passes, quits a running
-LiveCaptions, replaces `/Applications/LiveCaptions.app` (the old app stays if
-anything fails), clears the quarantine flag and opens the app. It never uses
-sudo and sends nothing anywhere; it only downloads from GitHub. For a
-specific version, end the line with `| bash -s -- 0.1.2`. Run the same line
-again to update. Each release also has the script attached as `install.sh`.
-Then continue with the first run (step 5 below).
+The [installer](scripts/install.sh) downloads the latest release ZIP, verifies its SHA-256 checksum, installs LiveCaptions in `/Applications`, clears the quarantine flag, and opens the app. It runs without `sudo`. Run the same command to update, or use `bash -s -- 0.1.2` in place of `bash` to select a version.
 
-The quarantine step is needed because the app is ad-hoc signed and not
-notarized. It goes away only when releases are signed with a Developer ID
-and notarized, which needs an Apple Developer account (an owner decision,
-docs/DECISIONS.md 0027).
+### DMG or ZIP
 
-To do it by hand instead, there are two ways: the DMG (drag to Applications,
-from v0.1.2 on) or the copy-paste zip install below. Both end with the same
-app and the same first run (steps 4 to 6).
-
-**DMG.** From the
-[latest release](https://github.com/zerone0x/mac-live-captions/releases/latest),
-download `LiveCaptions-<version>-mac-arm64.dmg` and its `.sha256` file, then:
-
-1. Check it: `shasum -a 256 -c LiveCaptions-<version>-mac-arm64.dmg.sha256`
-   must print `OK`.
-2. Open the DMG. Finder shows LiveCaptions and an Applications folder; drag
-   LiveCaptions onto Applications (replace an older copy; quit it first),
-   then eject the "LiveCaptions <version>" disk.
-3. Clear the quarantine flag (the app is not notarized, see step 4 below) and
-   open it:
+1. From the [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest), download the Apple Silicon DMG or ZIP and its matching `.sha256` file. Keep both files in the same folder.
+2. In Terminal, change to that folder and run `shasum -a 256 -c` with the downloaded `.sha256` filename. Continue once it reports `OK`.
+3. Open the DMG and drag LiveCaptions to Applications. For the ZIP, unzip it and move `LiveCaptions.app` to Applications. Quit any running copy before replacing it.
+4. The current download uses an ad-hoc signature. macOS requires the quarantine flag to be cleared for this build. After verifying and moving the app, clear the quarantine flag on that copy and open it.
 
    ```sh
    xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
    open /Applications/LiveCaptions.app
    ```
 
-**Zip.** Copy-paste install (downloads into `~/Downloads`; replace the version
-with the [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest)
-if it is newer):
+macOS may request permissions again after an update. To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`. To remove its preferences as well, run `defaults delete dev.trine.LiveCaptions`.
 
-```sh
-V=0.1.2
-cd ~/Downloads
-curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip"
-curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip.sha256"
-shasum -a 256 -c "LiveCaptions-$V.zip.sha256"   # must print "LiveCaptions-$V.zip: OK"
-ditto -x -k "LiveCaptions-$V.zip" .
-osascript -e 'quit app "LiveCaptions"' 2>/dev/null
-rm -rf /Applications/LiveCaptions.app && mv LiveCaptions.app /Applications/
-xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
-open /Applications/LiveCaptions.app
-```
+## First run
 
-What these steps do:
+1. Open **Welcome and Setup…** from the LiveCaptions icon in the menu bar.
+2. Click **Download English Speech Model** and wait for macOS to finish downloading it.
+3. Click **Ask for Permission**, allow LiveCaptions in **System Settings → Privacy & Security → Screen & System Audio Recording**, then click **Relaunch**.
+4. Play something with English speech. Choose **Start Captions** in the menu bar or press **⌃⌥C**.
 
-1. Download `LiveCaptions-<version>.zip` and `LiveCaptions-<version>.zip.sha256`
-   from the release. The release notes are the matching section of
-   [CHANGELOG.md](CHANGELOG.md).
-2. Check the zip. `shasum` must print `LiveCaptions-<version>.zip: OK`; if it
-   does not, delete the zip and do not open it.
-3. Unzip it and move the app to Applications, replacing an older copy (quit
-   the running app first).
-4. The app is ad-hoc signed and not notarized (there is no Apple Developer ID
-   yet), so Gatekeeper blocks it as downloaded ("cannot be opened" or "is
-   damaged"). `xattr` clears the quarantine flag; then open it.
-5. First run. The app has no Dock icon: look for the captions icon in the menu
-   bar. The welcome window (also in the menu as **Welcome and Setup…**) walks
-   through two things:
-   - **English speech model.** Click **Download English Speech Model**. macOS
-     downloads it once from Apple; this is the only time LiveCaptions uses the
-     network. The menu shows the progress.
-   - **Screen & System Audio Recording.** Click **Ask for Permission** and allow
-     LiveCaptions in System Settings → Privacy & Security → Screen & System
-     Audio Recording, then click **Relaunch**: macOS applies the permission
-     only to a new process.
+To preview the overlay without playing audio, choose **Debug: Demo Captions** from the menu.
 
-   Then **Start Captions** (or ⌃⌥C from any app) and play something with
-   English speech. The microphone permission is asked for only if you run
-   **Debug: Audio Capture** with the microphone; captions never use it.
-6. Updating: run the one-line installer again, or quit LiveCaptions, replace
-   the app in /Applications with the new one and clear the quarantine flag
-   again. Each release has a new ad-hoc
-   signature, so macOS may ask for the permissions again.
-
-To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`.
-The settings are in `defaults read dev.trine.LiveCaptions` (`defaults delete
-dev.trine.LiveCaptions` removes them).
-
-### Report a problem
+## Report a problem
 
 [Open an issue](https://github.com/zerone0x/mac-live-captions/issues/new) with:
 
@@ -143,27 +80,6 @@ Known limitations are in [CHANGELOG.md](CHANGELOG.md); hardware checks still
 open are on [#29](https://github.com/zerone0x/mac-live-captions/issues/29).
 LiveCaptions saves no transcripts or audio, so there is nothing to attach
 beyond what you describe; leave out anything private you saw in captions.
-
-### Releasing (maintainers)
-
-1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`
-   and add a `## [<version>]` section to `CHANGELOG.md` in a PR. CI fails if
-   the version has no changelog section (`scripts/release-selftest.sh`).
-2. After it merges, tag the merge commit on `main` and push the tag:
-   `git tag v0.1.0 && git push origin v0.1.0`.
-3. The [Release workflow](.github/workflows/release.yml) checks that the tag
-   equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
-   verifies the Release app, zips it, builds the DMG
-   (`scripts/release-dmg.sh`; it mounts the DMG read-only and re-verifies the
-   app inside), writes a `.sha256` file for each, installs the zip with
-   `scripts/install.sh` into a temporary folder, and creates the GitHub
-   Release with the changelog section as its notes and `install.sh`
-   attached.
-
-Run it by hand (Actions → Release → Run workflow, or
-`gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
-packages, uploads the files as a workflow artifact and publishes nothing.
-Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023, 0026 and 0027.
 
 ## Try a CI build
 
@@ -268,3 +184,32 @@ scripts/          offline, dependency, linked-framework and bundle checks (CI)
 docs/             scope, architecture, decisions, manual testing, research
 PRD.md            original long-term vision (Chinese), background only
 ```
+
+## Project docs
+
+- [Current scope](docs/SCOPE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Decisions](docs/DECISIONS.md)
+- [Testing](docs/TESTING.md)
+- [Original product brief (Chinese)](PRD.md)
+
+## Releasing (maintainers)
+
+1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`
+   and add a `## [<version>]` section to `CHANGELOG.md` in a PR. CI fails if
+   the version has no changelog section (`scripts/release-selftest.sh`).
+2. After it merges, tag the merge commit on `main` and push the tag:
+   `git tag v0.1.3 && git push origin v0.1.3` (use the version you are releasing)..
+3. The [Release workflow](.github/workflows/release.yml) checks that the tag
+   equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
+   verifies the Release app, zips it, builds the DMG
+   (`scripts/release-dmg.sh`; it mounts the DMG read-only and re-verifies the
+   app inside), writes a `.sha256` file for each, installs the zip with
+   `scripts/install.sh` into a temporary folder, and creates the GitHub
+   Release with the changelog section as its notes and `install.sh`
+   attached.
+
+Run it by hand (Actions → Release → Run workflow, or
+`gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
+packages, uploads the files as a workflow artifact and publishes nothing.
+Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023, 0026 and 0027.
