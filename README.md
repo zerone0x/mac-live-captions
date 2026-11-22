@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <strong><a href="https://github.com/zerone0x/mac-live-captions/releases/latest">Download for Mac</a></strong>
+  <strong><a href="https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg">Download DMG</a></strong>
   · <a href="#install">Install guide</a>
   · <a href="CHANGELOG.md">Changelog</a>
   <br>
@@ -35,27 +35,34 @@ LiveCaptions captions English system audio. Microphone captions, translation, an
 
 Requires an **Apple Silicon Mac with macOS 26 or later**.
 
+### DMG
+
+1. Download the [LiveCaptions v0.1.3 DMG](https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg).
+2. Open the DMG and drag **LiveCaptions** to **Applications**. Quit any
+   running copy before replacing it.
+3. Eject the DMG, then open LiveCaptions from Applications. Starting with
+   v0.1.3, both the app and DMG are Developer ID signed and notarized by Apple.
+
+The [release page](https://github.com/zerone0x/mac-live-captions/releases/tag/v0.1.3)
+also has the ZIP and SHA-256 files. To verify a download, keep it beside
+its `.sha256` file and run `shasum -a 256 -c` with the checksum filename.
+If you use the ZIP, unzip it and move `LiveCaptions.app` to Applications.
+
 ### Terminal
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash
 ```
 
-The [installer](scripts/install.sh) downloads the latest release ZIP, verifies its SHA-256 checksum, installs LiveCaptions in `/Applications`, clears the quarantine flag, and opens the app. It runs without `sudo`. Run the same command to update, or use `bash -s -- 0.1.2` in place of `bash` to select a version.
+The [installer](scripts/install.sh) downloads the latest release ZIP,
+verifies its SHA-256 checksum, installs LiveCaptions in `/Applications`,
+and opens the app. It runs without `sudo`. Run the same command to update,
+or use `bash -s -- 0.1.3` in place of `bash` to select a version.
 
-### DMG or ZIP
-
-1. From the [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest), download the Apple Silicon DMG or ZIP and its matching `.sha256` file. Keep both files in the same folder.
-2. In Terminal, change to that folder and run `shasum -a 256 -c` with the downloaded `.sha256` filename. Continue once it reports `OK`.
-3. Open the DMG and drag LiveCaptions to Applications. For the ZIP, unzip it and move `LiveCaptions.app` to Applications. Quit any running copy before replacing it.
-4. The current download uses an ad-hoc signature. macOS requires the quarantine flag to be cleared for this build. After verifying and moving the app, clear the quarantine flag on that copy and open it.
-
-   ```sh
-   xattr -dr com.apple.quarantine /Applications/LiveCaptions.app
-   open /Applications/LiveCaptions.app
-   ```
-
-macOS may request permissions again after an update. To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`. To remove its preferences as well, run `defaults delete dev.trine.LiveCaptions`.
+macOS may request permissions again when you upgrade from an older ad-hoc
+signed build. To uninstall, quit LiveCaptions and delete
+`/Applications/LiveCaptions.app`. To remove its preferences as well, run
+`defaults delete dev.trine.LiveCaptions`.
 
 ## First run
 
@@ -195,21 +202,27 @@ PRD.md            original long-term vision (Chinese), background only
 
 ## Releasing (maintainers)
 
-1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`
-   and add a `## [<version>]` section to `CHANGELOG.md` in a PR. CI fails if
-   the version has no changelog section (`scripts/release-selftest.sh`).
-2. After it merges, tag the merge commit on `main` and push the tag:
-   `git tag v0.1.3 && git push origin v0.1.3` (use the version you are releasing)..
+1. Bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml`.
+   Add a `## [<version>]` section to `CHANGELOG.md` and update the README
+   download link in the same PR.
+2. After it merges, tag the merge commit on `main` and push the release tag.
 3. The [Release workflow](.github/workflows/release.yml) checks that the tag
    equals `MARKETING_VERSION` and is on `main`, runs the tests, builds and
-   verifies the Release app, zips it, builds the DMG
-   (`scripts/release-dmg.sh`; it mounts the DMG read-only and re-verifies the
-   app inside), writes a `.sha256` file for each, installs the zip with
-   `scripts/install.sh` into a temporary folder, and creates the GitHub
-   Release with the changelog section as its notes and `install.sh`
-   attached.
+   verifies the Release app. The signing job uses a temporary keychain to
+   sign the app and DMG with Developer ID, notarizes both with Apple, and
+   staples the tickets before computing the final checksums. The GitHub
+   Release is created after signed packaging and installer checks pass.
 
 Run it by hand (Actions → Release → Run workflow, or
 `gh workflow run release.yml --ref <branch>`) for a dry run: it builds and
 packages, uploads the files as a workflow artifact and publishes nothing.
-Details: [docs/DECISIONS.md](docs/DECISIONS.md) 0023, 0026 and 0027.
+To test signing and notarization without publishing, run
+`gh workflow run release.yml --ref main -f signed=true`.
+
+The `macos-release` GitHub Actions environment allows `main` and `v*` tags.
+It needs these environment secrets for the Apple team used by the workflow.
+
+- `APPLE_SIGNING_P12_BASE64` and `APPLE_SIGNING_P12_PASSWORD` contain the
+  Base64-encoded Developer ID Application PKCS#12 file and its import password.
+- `APPLE_NOTARY_APPLE_ID` and `APPLE_NOTARY_PASSWORD` contain the Apple Account
+  on that team and its [app-specific password](https://support.apple.com/102654).

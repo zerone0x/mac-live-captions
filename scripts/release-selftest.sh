@@ -9,7 +9,7 @@
 # are skipped with a message; on macOS a missing plutil fails.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 version_sh="$PWD/scripts/release-version.sh"
 notes_sh="$PWD/scripts/release-notes.sh"
 work="$(mktemp -d)"
@@ -219,6 +219,16 @@ if out="$(notes 0.1.0 "$good_zip" "$good_dmg" "$work/CHANGELOG.md" 2>&1)"; then
   [[ "${out%%"$oneliner"*}" != *"open $dmg"* ]] \
     || { echo "selftest: notes do not lead with the one-line installer: $out" >&2; status=1; }
   [[ "$out" != *"## [0.1.0]"* ]] || { echo "selftest: notes repeat the heading: $out" >&2; status=1; }
+  [[ "$out" == *"xattr -dr com.apple.quarantine"* ]] \
+    || { echo "selftest: ad-hoc notes lack the legacy install step" >&2; status=1; }
+fi
+if out="$(RELEASE_SIGNED=1 notes 0.1.0 "$good_zip" "$good_dmg" "$work/CHANGELOG.md")"; then
+  [[ "$out" == *"Developer ID signed and notarized by Apple"* && "$out" != *"quarantine"* ]] \
+    || { echo "selftest: notarized notes contain incorrect installation steps" >&2; status=1; }
+  [[ "${out%%"$oneliner"*}" == *"open $dmg"* ]] \
+    || { echo "selftest: notarized notes do not lead with the DMG" >&2; status=1; }
+else
+  status=1
 fi
 expect_pass notes-last-section "Only section." notes 0.1.0 "$good_zip" "$good_dmg" "$work/last.md"
 if out="$(notes 0.1.0 "$good_zip" "$good_dmg" "$work/last.md" 2>&1)"; then
