@@ -26,6 +26,18 @@ on:
         description: Sign and notarize the dry run (main only). Nothing is published.
         type: boolean
         default: false
+      resume_app_submissions:
+        description: Comma-separated Apple submission IDs for the same App. Reuse their ticket.
+        type: string
+        default: ''
+      resume_app_cdhash:
+        description: Expected signed App CDHash when resuming an existing submission.
+        type: string
+        default: ''
+      resume_from_run:
+        description: Optional original Release run ID for its verified unsigned App artifact.
+        type: string
+        default: ''
 
 # Nothing by default; each job asks for what it needs.
 permissions: {}
@@ -61,6 +73,9 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           INPUT_TAG: ${{ inputs.tag }}
           SIGNED_DRY_RUN: ${{ inputs.signed }}
+          RESUME_APP: ${{ inputs.resume_app_submissions }}
+          RESUME_CDHASH: ${{ inputs.resume_app_cdhash }}
+          RESUME_FROM_RUN: ${{ inputs.resume_from_run }}
         run: |
           set -euo pipefail
           if [[ "$EVENT" == push ]]; then
@@ -84,6 +99,12 @@ jobs:
             [[ "$REF_TYPE" == branch && "$REF_NAME" == main ]] \
               || { echo "error: signed dry runs must use main" >&2; exit 1; }
             signed=true
+          fi
+          if [[ -n "${RESUME_APP}${RESUME_CDHASH}${RESUME_FROM_RUN}" ]]; then
+            [[ "$EVENT" == workflow_dispatch && "$signed" == true && -n "$RESUME_APP" && "$RESUME_CDHASH" =~ ^[0-9a-f]{40}$ ]] \
+              || { echo 'error: resuming needs a signed dry run, submission IDs, and an App CDHash' >&2; exit 1; }
+            [[ -z "$RESUME_FROM_RUN" || "$RESUME_FROM_RUN" =~ ^[0-9]+$ ]] \
+              || { echo 'error: invalid original run ID' >&2; exit 1; }
           fi
           printf '%s\n' "tag=$tag" "version=$version" "signed=$signed" >>"$GITHUB_OUTPUT"
           echo "Release $tag (version $version), event $EVENT"
@@ -265,10 +286,11 @@ jobs:
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.signed))
     environment: macos-release
     runs-on: macos-26
-    # Notarization can take up to 90 minutes each for the app and DMG.
-    timeout-minutes: 205
+    # A resumed App submission may wait for four hours, then the DMG for 90 minutes.
+    timeout-minutes: 350
     permissions:
       contents: read
+      actions: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       VERSION: ${{ needs.build.outputs.version }}
@@ -282,6 +304,8 @@ jobs:
         with:
           name: unsigned-${{ needs.build.outputs.tag }}
           path: unsigned
+          github-token: ${{ inputs.resume_from_run && github.token || '' }}
+          run-id: ${{ inputs.resume_from_run || github.run_id }}
 
       - name: Sign and notarize the app and DMG
         env:
@@ -290,7 +314,23 @@ jobs:
           APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
           APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
           APPLE_TEAM_ID: '4367F9SNJJ'
+          RESUME_APP_SUBMISSIONS: ${{ inputs.resume_app_submissions }}
+          RESUME_APP_CDHASH: ${{ inputs.resume_app_cdhash }}
         run: scripts/release-sign.sh "$VERSION" unsigned dist
+
+      - name: Preserve the submitted DMG if the resumed run fails
+        if: failure() && inputs.resume_app_submissions && hashFiles('dist/dmg-notary-id.txt') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: pending-dmg-${{ needs.build.outputs.tag }}
+          path: |
+            dist/LiveCaptions-${{ needs.build.outputs.version }}-mac-arm64.dmg
+            dist/LiveCaptions-${{ needs.build.outputs.version }}-mac-arm64.dmg.sha256
+            dist/LiveCaptions-${{ needs.build.outputs.version }}.zip
+            dist/LiveCaptions-${{ needs.build.outputs.version }}.zip.sha256
+            dist/dmg-notary-id.txt
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Install the signed zip and write release notes
         timeout-minutes: 5
