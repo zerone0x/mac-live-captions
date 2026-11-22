@@ -11,7 +11,7 @@ To review the UI without a Mac, use the [CI screenshots](#screenshots-from-ci).
 
 ## Test a specific commit
 
-Check out the commit and [build locally](../README.md#build-locally) to run it
+Check out the commit and [build locally](CONTRIBUTING.md#build-locally) to run it
 on your Mac. To inspect the bundle built by CI, open a successful run in the
 [CI workflow](https://github.com/zerone0x/mac-live-captions/actions/workflows/ci.yml)
 and download `LiveCaptions-<sha>`. Extract the artifact and then the enclosed
