@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Prints the GitHub Release notes for a version: its CHANGELOG.md section
-# (without the heading), then install steps (the one-line installer,
-# scripts/install.sh, first; then the DMG and the zip by hand) and the
-# checksums of the DMG and the zip.
+# (without the heading), then install steps and the artifact checksums.
 #
 #   scripts/release-notes.sh <version> <zip.sha256> <dmg.sha256> [CHANGELOG.md]
 #
@@ -54,12 +52,9 @@ else
   open_app=$'xattr -dr com.apple.quarantine /Applications/LiveCaptions.app\n'"$open_app"
 fi
 
-cat <<EOF
-$section
-
-## Install
-
-Paste this into Terminal (Apple Silicon, macOS 26 or later):
+print_terminal_install() {
+  cat <<EOF
+### Install from Terminal
 
 \`\`\`sh
 curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash -s -- $version
@@ -70,8 +65,12 @@ running LiveCaptions, replaces /Applications/LiveCaptions.app (the old app
 stays if anything fails), $installer_finish. No
 sudo. Leave out \`-s -- $version\` to get the latest release. The same
 script is attached to this release as \`install.sh\`.
+EOF
+}
 
-### Manual install
+print_dmg_install() {
+  cat <<EOF
+### Install from the DMG
 
 Download \`$dmg\` and \`$dmg.sha256\`, check the DMG and open it:
 
@@ -85,8 +84,27 @@ Drag LiveCaptions to Applications in the window that opens, then run:
 \`\`\`sh
 $open_app
 \`\`\`
+EOF
+}
 
-Or use the zip (\`$zip\` and \`$zip.sha256\`) instead of the DMG:
+printf '%s\n\n' "$section"
+printf '%s\n\n' '## Install' 'Requires Apple Silicon and macOS 26 or later.'
+
+if [[ "${RELEASE_SIGNED:-0}" == 1 ]]; then
+  print_dmg_install
+  printf '\n'
+  print_terminal_install
+else
+  print_terminal_install
+  printf '\n'
+  print_dmg_install
+fi
+
+cat <<EOF
+
+### Install from the ZIP
+
+Download \`$zip\` and \`$zip.sha256\`:
 
 \`\`\`sh
 shasum -a 256 -c $zip.sha256

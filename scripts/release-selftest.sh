@@ -225,6 +225,8 @@ fi
 if out="$(RELEASE_SIGNED=1 notes 0.1.0 "$good_zip" "$good_dmg" "$work/CHANGELOG.md")"; then
   [[ "$out" == *"Developer ID signed and notarized by Apple"* && "$out" != *"quarantine"* ]] \
     || { echo "selftest: notarized notes contain incorrect installation steps" >&2; status=1; }
+  [[ "${out%%"$oneliner"*}" == *"open $dmg"* ]] \
+    || { echo "selftest: notarized notes do not lead with the DMG" >&2; status=1; }
 else
   status=1
 fi

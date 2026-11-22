@@ -7,16 +7,20 @@ Versions follow [Semantic Versioning](https://semver.org); the version in
 
 ## [Unreleased]
 
+## [0.1.3]
+
+The first Developer ID-signed and Apple-notarized release.
+
 ### Added
 
-- **A one-line installer** (#60):
-  `curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash`
-  downloads the latest release zip, checks its SHA-256, quits a running
-  LiveCaptions, replaces the app in /Applications (keeping the old one if
-  anything fails), clears the quarantine flag and opens it. No sudo. Add
-  `-s -- <version>` after `bash` for a given version. Releases attach the
-  script as `install.sh`; README, Install and the release notes lead with
-  it, and the manual DMG and zip steps stay.
+- **A one-line installer** (#60) downloads, verifies, and installs the latest
+  release ZIP. Each release includes the installer script and SHA-256 files.
+
+### Changed
+
+- The app and DMG carry Developer ID signatures and stapled Apple
+  notarization tickets. Open the DMG and drag LiveCaptions to Applications.
+  macOS checks the signature and notarization when you open the app.
 
 ## [0.1.2]
 

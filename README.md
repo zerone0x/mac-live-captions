@@ -4,7 +4,7 @@ Live English captions for any audio on your Mac, shown near the notch.
 Speech recognition runs on device with Apple's `SpeechAnalyzer`, so captions
 are fast and nothing leaves your Mac.
 
-Status: v0.1.2 ([CHANGELOG.md](CHANGELOG.md); to install
+Status: v0.1.3 ([CHANGELOG.md](CHANGELOG.md); to install
 it, see [Install](#install)). The current scope, what the app does and what
 it does not do yet, is [docs/SCOPE.md](docs/SCOPE.md): English live captions
 of system audio, on device, no translation and no summaries.
@@ -35,90 +35,43 @@ Requirements: Apple Silicon Mac, macOS 26 or later.
 
 ## Install
 
-Needs an Apple Silicon Mac with macOS 26 or later. Paste this into Terminal:
+**[Download LiveCaptions v0.1.3 (.dmg)](https://github.com/zerone0x/mac-live-captions/releases/download/v0.1.3/LiveCaptions-0.1.3-mac-arm64.dmg)** for Apple Silicon Macs running macOS 26 or later.
+
+1. Open the DMG and drag **LiveCaptions** to **Applications**. Quit an older
+   copy before replacing it.
+2. Eject the DMG and open LiveCaptions from Applications. Starting with
+   v0.1.3, the app and DMG are Developer ID signed and notarized by Apple.
+3. Look for the captions icon in the menu bar and follow the first-run steps
+   below.
+
+The [release page](https://github.com/zerone0x/mac-live-captions/releases/tag/v0.1.3)
+also has the ZIP and SHA-256 files. To check the DMG, put it and its
+`.sha256` file in the same folder and run
+`shasum -a 256 -c LiveCaptions-0.1.3-mac-arm64.dmg.sha256`.
+
+### Install or update from Terminal
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/zerone0x/mac-live-captions/main/scripts/install.sh | bash
 ```
 
-[`scripts/install.sh`](scripts/install.sh) checks the Mac, finds the latest
-release, downloads `LiveCaptions-<version>.zip` and its `.sha256` file into a
-temporary folder, refuses unless `shasum -a 256 -c` passes, quits a running
-LiveCaptions, replaces `/Applications/LiveCaptions.app` (the old app stays if
-anything fails), clears the quarantine flag and opens the app. It never uses
-sudo and sends nothing anywhere; it only downloads from GitHub. For a
-specific version, end the line with `| bash -s -- 0.1.2`. Run the same line
-again to update. Each release also has the script attached as `install.sh`.
-Then continue with the first run (step 5 below).
+The [installer](scripts/install.sh) downloads the latest release ZIP,
+checks its SHA-256, quits LiveCaptions if it is running, and replaces the
+app in Applications. An existing copy is restored if replacement fails.
+To pin a release, replace `| bash` with `| bash -s -- 0.1.3`.
 
-If your release notes say the app has been notarized, you can open it directly
-after installing it by hand. For older ad-hoc signed releases such as v0.1.2,
-see the quarantine step below.
+### First run
 
-To do it by hand instead, there are two ways: the DMG (drag to Applications,
-from v0.1.2 on) or the copy-paste zip install below. Both end with the same
-app and the same first run (steps 4 to 6).
+Open **Welcome and Setup…** from the menu bar icon.
 
-**DMG.** From the
-[latest release](https://github.com/zerone0x/mac-live-captions/releases/latest),
-download `LiveCaptions-<version>-mac-arm64.dmg` and its `.sha256` file, then:
-
-1. Check it: `shasum -a 256 -c LiveCaptions-<version>-mac-arm64.dmg.sha256`
-   must print `OK`.
-2. Open the DMG. Finder shows LiveCaptions and an Applications folder; drag
-   LiveCaptions onto Applications (replace an older copy; quit it first),
-   then eject the "LiveCaptions <version>" disk.
-3. Open it (see step 4 for older ad-hoc signed releases):
-
-   ```sh
-   open /Applications/LiveCaptions.app
-   ```
-
-**Zip.** Copy-paste install (downloads into `~/Downloads`; replace the version
-with the [latest release](https://github.com/zerone0x/mac-live-captions/releases/latest)
-if it is newer):
-
-```sh
-V=0.1.2
-cd ~/Downloads
-curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip"
-curl -fLO "https://github.com/zerone0x/mac-live-captions/releases/download/v$V/LiveCaptions-$V.zip.sha256"
-shasum -a 256 -c "LiveCaptions-$V.zip.sha256"   # must print "LiveCaptions-$V.zip: OK"
-ditto -x -k "LiveCaptions-$V.zip" .
-osascript -e 'quit app "LiveCaptions"' 2>/dev/null
-rm -rf /Applications/LiveCaptions.app && mv LiveCaptions.app /Applications/
-open /Applications/LiveCaptions.app
-```
-
-What these steps do:
-
-1. Download `LiveCaptions-<version>.zip` and `LiveCaptions-<version>.zip.sha256`
-   from the release. The release notes are the matching section of
-   [CHANGELOG.md](CHANGELOG.md).
-2. Check the zip. `shasum` must print `LiveCaptions-<version>.zip: OK`; if it
-   does not, delete the zip and do not open it.
-3. Unzip it and move the app to Applications, replacing an older copy (quit
-   the running app first).
-4. If you installed an older ad-hoc signed release such as v0.1.2, run
-   `xattr -dr com.apple.quarantine /Applications/LiveCaptions.app` before opening
-   it. Notarized releases open with Gatekeeper's normal checks.
-5. First run. The app has no Dock icon: look for the captions icon in the menu
-   bar. The welcome window (also in the menu as **Welcome and Setup…**) walks
-   through two things:
-   - **English speech model.** Click **Download English Speech Model**. macOS
-     downloads it once from Apple; this is the only time LiveCaptions uses the
-     network. The menu shows the progress.
-   - **Screen & System Audio Recording.** Click **Ask for Permission** and allow
-     LiveCaptions in System Settings → Privacy & Security → Screen & System
-     Audio Recording, then click **Relaunch**: macOS applies the permission
-     only to a new process.
-
-   Then **Start Captions** (or ⌃⌥C from any app) and play something with
-   English speech. The microphone permission is asked for only if you run
-   **Debug: Audio Capture** with the microphone; captions never use it.
-6. Updating: run the one-line installer again, or quit LiveCaptions and
-   replace the app in /Applications with the new version. When switching
-   from an ad-hoc signed build, macOS may ask for permissions again.
+1. Click **Download English Speech Model**. macOS downloads it once from
+   Apple.
+2. Click **Ask for Permission**, allow LiveCaptions in System Settings →
+   Privacy & Security → Screen & System Audio Recording, then click
+   **Relaunch**. macOS may ask again when you switch from an older ad-hoc
+   signed build.
+3. Click **Start Captions**, or press ⌃⌥C, and play something with English
+   speech.
 
 To uninstall, quit LiveCaptions and delete `/Applications/LiveCaptions.app`.
 The settings are in `defaults read dev.trine.LiveCaptions` (`defaults delete
