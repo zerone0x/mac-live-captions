@@ -39,6 +39,51 @@ trap cleanup EXIT
 notary=(--apple-id "$APPLE_NOTARY_APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD")
 unset APPLE_NOTARY_APPLE_ID APPLE_NOTARY_PASSWORD
 
+wait_for_existing_app() {
+  local ids submission status pending first_poll=true response="$work/existing-notary.json"
+  local deadline=$((SECONDS + 4 * 60 * 60))
+  IFS=, read -r -a ids <<<"$RESUME_APP_SUBMISSIONS"
+  echo "release-sign: checking existing App submissions ($RESUME_APP_SUBMISSIONS)"
+  while ((SECONDS < deadline)); do
+    pending=false
+    for submission in "${ids[@]}"; do
+      if ! "$scripts/with-timeout.sh" 45 xcrun notarytool info "$submission" "${notary[@]}" --output-format json >"$response"; then
+        echo "release-sign: could not check App submission $submission; will retry" >&2
+        pending=true
+        continue
+      fi
+      status="$(plutil -extract status raw "$response")"
+      if $first_poll; then
+        echo "release-sign: existing App submission $submission is $status"
+      fi
+      case "$status" in
+        Accepted)
+          echo "release-sign: Accepted existing App submission ($submission)"
+          return 0
+          ;;
+        'In Progress') pending=true ;;
+      esac
+    done
+    if ! $pending; then
+      for submission in "${ids[@]}"; do
+        xcrun notarytool log "$submission" "${notary[@]}" >&2 || true
+      done
+      fail 'none of the existing App submissions was accepted'
+    fi
+    first_poll=false
+    sleep 60
+  done
+  fail "existing App submissions still pending ($RESUME_APP_SUBMISSIONS)"
+}
+
+resume_app="${RESUME_APP_SUBMISSIONS:-}"
+if [[ -n "$resume_app" ]]; then
+  uuid='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+  [[ "$resume_app" =~ ^$uuid(,$uuid)*$ ]] || fail 'invalid existing App submission IDs'
+  [[ "${RESUME_APP_CDHASH:-}" =~ ^[0-9a-f]{40}$ ]] || fail 'expected the existing App CDHash'
+  wait_for_existing_app
+fi
+
 # The runner needs the Apple G2 intermediate when embedding the certificate
 # chain in a signature. Keep it and the private key in the temporary keychain.
 ca="$work/DeveloperIDG2CA.cer"
@@ -77,9 +122,12 @@ identity="$(security find-identity -v -p codesigning "$keychain" |
 [[ "$identity" =~ ^[0-9A-F]{40}$ ]] || fail "expected one valid Developer ID Application identity for $APPLE_TEAM_ID"
 
 notarize() {
-  local submission status response="$work/notary.json"
+  local submission status response="$work/notary.json" checkpoint="${2:-}"
   xcrun notarytool submit "$1" "${notary[@]}" --output-format json >"$response"
   submission="$(plutil -extract id raw "$response")"
+  if [[ -n "$checkpoint" ]]; then
+    printf '%s\n' "$submission" >"$checkpoint"
+  fi
   echo "release-sign: awaiting notarization of $(basename "$1") ($submission)"
   if ! xcrun notarytool wait "$submission" "${notary[@]}" --timeout 90m --output-format json >"$response"; then
     xcrun notarytool info "$submission" "${notary[@]}" --output-format json >&2 || true
@@ -103,9 +151,13 @@ grep -Fxq "TeamIdentifier=$APPLE_TEAM_ID" <<<"$signature" || fail "unexpected Ap
 grep -q '^Timestamp=' <<<"$signature" || fail "missing App signature timestamp"
 "$scripts/verify-app.sh" "$app"
 
-# Apple accepts ZIP submissions but tickets are attached to the app inside.
-ditto -c -k --sequesterRsrc --keepParent "$app" "$work/notary.zip"
-notarize "$work/notary.zip"
+if [[ -n "$resume_app" ]]; then
+  grep -Fxq "CDHash=$RESUME_APP_CDHASH" <<<"$signature" || fail 'App CDHash differs from the existing submission'
+else
+  # Apple accepts ZIP submissions but tickets are attached to the app inside.
+  ditto -c -k --sequesterRsrc --keepParent "$app" "$work/notary.zip"
+  notarize "$work/notary.zip"
+fi
 xcrun stapler staple "$app"
 xcrun stapler validate "$app"
 
@@ -115,7 +167,8 @@ xcrun stapler validate "$work/final-zip/LiveCaptions.app"
 
 "$scripts/release-dmg.sh" "$version" "$app" "$out"
 codesign --sign "$identity" --keychain "$keychain" --timestamp "$out/$dmg"
-notarize "$out/$dmg"
+(cd "$out" && shasum -a 256 "$dmg" >"$dmg.sha256")
+notarize "$out/$dmg" "$out/dmg-notary-id.txt"
 xcrun stapler staple "$out/$dmg"
 xcrun stapler validate "$out/$dmg"
 codesign --verify --strict "$out/$dmg"
