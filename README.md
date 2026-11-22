@@ -66,6 +66,8 @@ signed build. To uninstall, quit LiveCaptions and delete
 
 ## First run
 
+LiveCaptions appears in the menu bar.
+
 1. Open **Welcome and Setup…** from the LiveCaptions icon in the menu bar.
 2. Click **Download English Speech Model** and wait for macOS to finish downloading it.
 3. Click **Ask for Permission**, allow LiveCaptions in **System Settings → Privacy & Security → Screen & System Audio Recording**, then click **Relaunch**.
@@ -88,54 +90,14 @@ open are on [#29](https://github.com/zerone0x/mac-live-captions/issues/29).
 LiveCaptions saves no transcripts or audio, so there is nothing to attach
 beyond what you describe; leave out anything private you saw in captions.
 
-## Try a CI build
+## CI builds for contributors
 
-Every PR and every push to `main` builds the app on GitHub Actions.
+To install LiveCaptions, use the [notarized release DMG](#install).
 
-1. Open the [CI workflow](https://github.com/zerone0x/mac-live-captions/actions/workflows/ci.yml), pick a green run,
-   and download the `LiveCaptions-<sha>` artifact from the run's summary page.
-   With the GitHub CLI:
-   `gh run download <run-id> --repo zerone0x/mac-live-captions`
-2. Unzip it. GitHub wraps the artifact in a zip, so you get
-   `LiveCaptions.zip`; unzip that too to get `LiveCaptions.app`.
-3. The build is ad-hoc signed, not notarized, so Gatekeeper blocks it as
-   downloaded. Clear the quarantine flag, then open it:
-
-   ```sh
-   xattr -dr com.apple.quarantine LiveCaptions.app
-   open LiveCaptions.app
-   ```
-
-4. The app has no Dock icon. Look for the captions icon in the menu bar.
-5. To see the caption overlay without audio, choose **Debug: Demo Captions** in
-   the menu. It plays a short scripted English feed at the notch (or in a pill
-   under the menu bar on displays without a notch).
-
-   To start the demo on launch (it repeats until stopped), pass
-   `--demo-captions`:
-   `LiveCaptions.app/Contents/MacOS/LiveCaptions --demo-captions`.
-
-Each CI run also uploads `overlay-screenshots-<sha>`: PNG renders of the
-overlay in notch and pill style for fixed states (one finalized line,
-finalized text plus a volatile tail, a two-line wrap, two finalized lines),
-plus the two-line wrap at the extra large text size (`overlay-*-xl-*.png`)
-and in the bottom position (`overlay-bottom-*.png`), the menu status states
-(`menu-*.png`), Settings and the welcome window. `live-screenshots-<sha>`
-has screenshots of the running app with the demo captions. What each file
-shows and how to read them: [docs/TESTING.md](docs/TESTING.md#screenshots-from-ci).
-
-Each build has a new ad-hoc signature, so macOS may ask for audio permissions
-again after you install a newer build.
-
-Artifacts are kept for 14 days. To list the runs for a branch and download
-only the screenshots of one run:
-
-```sh
-gh run list --repo zerone0x/mac-live-captions --workflow ci.yml --branch <branch>
-gh run download <run-id> --repo zerone0x/mac-live-captions --pattern '*-screenshots-*'
-```
-
-The manual test checklist for a real Mac is [docs/TESTING.md](docs/TESTING.md).
+The [CI workflow](https://github.com/zerone0x/mac-live-captions/actions/workflows/ci.yml)
+builds an ad-hoc-signed test app for each PR and push to `main`. The
+[testing guide](docs/TESTING.md#test-a-specific-commit) covers build artifacts,
+[screenshots](docs/TESTING.md#screenshots-from-ci), and checks on a real Mac.
 
 ## Build locally
 
